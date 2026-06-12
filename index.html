@@ -10,7 +10,12 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0d1520; font-family: sans-serif; }
+    input, select { color: #e2e8f0 !important; }
     input::placeholder { color: #64748b; }
+    select option { background: #1e2a3a; color: #e2e8f0; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #0d1520; }
+    ::-webkit-scrollbar-thumb { background: #2d3f55; border-radius: 2px; }
   </style>
 </head>
 <body>
@@ -51,6 +56,16 @@
       return data;
     }
 
+    async function resetPassword(email) {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+        method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message || "Reset failed");
+      return data;
+    }
+
     const ROOMS = [
       { id: "general", label: "general", emoji: "💬" },
       { id: "study", label: "study-group", emoji: "📚" },
@@ -58,15 +73,24 @@
       { id: "off-topic", label: "off-topic", emoji: "🎮" },
       { id: "assignments", label: "assignments", emoji: "📝" },
     ];
+
+    const LEVELS = ["100L", "200L", "300L", "400L", "500L"];
     const COLORS = ["#6C63FF","#FF6584","#43B89C","#F4A261","#4FC3F7"];
     const randomColor = () => COLORS[Math.floor(Math.random() * COLORS.length)];
     const timeStr = ts => new Date(ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+
+    const INP = { width:"100%", background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:10, padding:"11px 14px", color:"#e2e8f0", fontSize:14, outline:"none", marginBottom:10, display:"block" };
+    const BTN = { width:"100%", background:"#6C63FF", border:"none", borderRadius:10, padding:12, color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer" };
 
     function App() {
       const [screen, setScreen] = useState("login");
       const [email, setEmail] = useState("");
       const [password, setPassword] = useState("");
       const [username, setUsername] = useState("");
+      const [studentId, setStudentId] = useState("");
+      const [department, setDepartment] = useState("");
+      const [level, setLevel] = useState("");
+      const [phone, setPhone] = useState("");
       const [authErr, setAuthErr] = useState("");
       const [loading, setLoading] = useState(false);
       const [session, setSession] = useState(null);
@@ -79,7 +103,7 @@
       const bottomRef = useRef(null);
       const pollRef = useRef(null);
 
-      useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+      useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
 
       useEffect(() => {
         if (!session) return;
@@ -98,16 +122,18 @@
       }
 
       async function handleSignup() {
-        if (!email || !password || !username) return setAuthErr("Fill in all fields.");
+        if (!email || !password || !username || !studentId || !department || !level || !phone)
+          return setAuthErr("Please fill in all fields.");
         if (password.length < 6) return setAuthErr("Password must be at least 6 characters.");
         setLoading(true); setAuthErr("");
         try {
           const data = await signUp(email, password);
           const userId = data.user?.id;
-          if (!userId) throw new Error("Check your email for confirmation, then log in.");
+          if (!userId) throw new Error("Check your email for confirmation link, then log in.");
           await sbFetch("/profiles", { method:"POST",
-            body: JSON.stringify({ id: userId, username, avatar_color: randomColor() }) });
-          setAuthErr("✅ Account created! Please log in.");
+            body: JSON.stringify({ id: userId, username, avatar_color: randomColor(),
+              student_id: studentId, department, level, phone }) });
+          setAuthErr("✅ Account created! Check your email to confirm, then log in.");
           setScreen("login");
         } catch(e) { setAuthErr(e.message); }
         setLoading(false);
@@ -122,6 +148,16 @@
             { headers: { Authorization: `Bearer ${data.access_token}` } });
           if (!profiles.length) throw new Error("Profile not found. Please sign up first.");
           setSession(data); setProfile(profiles[0]); setScreen("chat");
+        } catch(e) { setAuthErr(e.message); }
+        setLoading(false);
+      }
+
+      async function handleForgotPassword() {
+        if (!email) return setAuthErr("Enter your email first.");
+        setLoading(true); setAuthErr("");
+        try {
+          await resetPassword(email);
+          setAuthErr("✅ Password reset email sent! Check your inbox.");
         } catch(e) { setAuthErr(e.message); }
         setLoading(false);
       }
@@ -145,22 +181,68 @@
         clearInterval(pollRef.current);
       }
 
+      const whatsappLink = profile?.phone ? `https://wa.me/${profile.phone.replace(/[^0-9]/g,'')}` : null;
+
+      if (screen === "forgot") {
+        return (
+          <div style={{ minHeight:"100vh", background:"#0d1520", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+            <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:20, padding:"36px 28px", width:"100%", maxWidth:360, textAlign:"center" }}>
+              <div style={{ fontSize:44, marginBottom:10 }}>🔐</div>
+              <h1 style={{ color:"#e2e8f0", fontWeight:800, fontSize:22, marginBottom:4 }}>Forgot Password</h1>
+              <p style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>Enter your email to reset your password</p>
+              <input style={INP} placeholder="Email address" value={email} type="email" onChange={e=>setEmail(e.target.value)} />
+              {authErr && <div style={{ color: authErr.startsWith("✅") ? "#4ade80" : "#f87171", fontSize:13, marginBottom:10 }}>{authErr}</div>}
+              <button style={{ ...BTN, opacity: loading ? 0.6 : 1 }} onClick={handleForgotPassword} disabled={loading}>
+                {loading ? "Sending..." : "Send Reset Link"}
+              </button>
+              <button style={{ background:"none", border:"none", color:"#6C63FF", fontSize:13, cursor:"pointer", marginTop:14 }} onClick={()=>{ setScreen("login"); setAuthErr(""); }}>
+                Back to Login
+              </button>
+            </div>
+          </div>
+        );
+      }
+
       if (screen !== "chat") {
         const isLogin = screen === "login";
         return (
           <div style={{ minHeight:"100vh", background:"#0d1520", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-            <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:20, padding:"36px 28px", width:"100%", maxWidth:360, textAlign:"center" }}>
+            <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:20, padding:"36px 28px", width:"100%", maxWidth:400, textAlign:"center" }}>
               <div style={{ fontSize:44, marginBottom:10 }}>🎓</div>
               <h1 style={{ color:"#e2e8f0", fontWeight:800, fontSize:24, marginBottom:4 }}>CampusHub</h1>
               <p style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>{isLogin ? "Welcome back 👋" : "Join your campus community"}</p>
-              {!isLogin && <input style={{ width:"100%", background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:10, padding:"11px 14px", color:"#e2e8f0", fontSize:14, outline:"none", marginBottom:10, display:"block" }} placeholder="Your name" value={username} onChange={e=>setUsername(e.target.value)} />}
-              <input style={{ width:"100%", background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:10, padding:"11px 14px", color:"#e2e8f0", fontSize:14, outline:"none", marginBottom:10, display:"block" }} placeholder="Email address" value={email} type="email" onChange={e=>setEmail(e.target.value)} />
-              <input style={{ width:"100%", background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:10, padding:"11px 14px", color:"#e2e8f0", fontSize:14, outline:"none", marginBottom:10, display:"block" }} placeholder="Password" value={password} type="password" onChange={e=>setPassword(e.target.value)} />
+
+              {!isLogin && <>
+                <input style={INP} placeholder="Full name" value={username} onChange={e=>setUsername(e.target.value)} />
+              </>}
+              <input style={INP} placeholder="Email address" value={email} type="email" onChange={e=>setEmail(e.target.value)} />
+              <input style={INP} placeholder="Password (min 6 characters)" value={password} type="password" onChange={e=>setPassword(e.target.value)} />
+
+              {!isLogin && <>
+                <input style={INP} placeholder="Student ID (e.g. STU/2024/001)" value={studentId} onChange={e=>setStudentId(e.target.value)} />
+                <input style={INP} placeholder="Department / Course" value={department} onChange={e=>setDepartment(e.target.value)} />
+                <select style={{ ...INP, appearance:"none" }} value={level} onChange={e=>setLevel(e.target.value)}>
+                  <option value="">Select Level</option>
+                  {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+                <input style={INP} placeholder="WhatsApp number (e.g. 2348012345678)" value={phone} onChange={e=>setPhone(e.target.value)} />
+              </>}
+
               {authErr && <div style={{ color: authErr.startsWith("✅") ? "#4ade80" : "#f87171", fontSize:13, marginBottom:10 }}>{authErr}</div>}
-              <button style={{ width:"100%", background:"#6C63FF", border:"none", borderRadius:10, padding:12, color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer", opacity: loading ? 0.6 : 1 }} onClick={isLogin ? handleLogin : handleSignup} disabled={loading}>
-                {loading ? "Please wait..." : isLogin ? "Log in →" : "Create account →"}
+
+              <button style={{ ...BTN, opacity: loading ? 0.6 : 1 }} onClick={isLogin ? handleLogin : handleSignup} disabled={loading}>
+                {loading ? "Please wait..." : isLogin ? "Log in →" : "Create Account →"}
               </button>
-              <button style={{ background:"none", border:"none", color:"#6C63FF", fontSize:13, cursor:"pointer", marginTop:14 }} onClick={()=>{ setScreen(isLogin?"signup":"login"); setAuthErr(""); }}>
+
+              {isLogin && (
+                <button style={{ background:"none", border:"none", color:"#94a3b8", fontSize:13, cursor:"pointer", marginTop:10, display:"block", width:"100%", textAlign:"center" }}
+                  onClick={()=>{ setScreen("forgot"); setAuthErr(""); }}>
+                  Forgot password?
+                </button>
+              )}
+
+              <button style={{ background:"none", border:"none", color:"#6C63FF", fontSize:13, cursor:"pointer", marginTop:8 }}
+                onClick={()=>{ setScreen(isLogin?"signup":"login"); setAuthErr(""); }}>
                 {isLogin ? "No account? Sign up" : "Have an account? Log in"}
               </button>
             </div>
@@ -172,22 +254,35 @@
       return (
         <div style={{ display:"flex", height:"100vh", background:"#0d1520", overflow:"hidden", position:"relative" }}>
           {sidebarOpen && <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:10 }} onClick={()=>setSidebarOpen(false)} />}
-          <aside style={{ width:220, background:"#111827", display:"flex", flexDirection:"column", borderRight:"1px solid #1e2d3d", position:"fixed", height:"100%", zIndex:20, transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)", transition:"transform 0.2s" }}>
+          <aside style={{ width:240, background:"#111827", display:"flex", flexDirection:"column", borderRight:"1px solid #1e2d3d", position:"fixed", height:"100%", zIndex:20, transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)", transition:"transform 0.2s" }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, padding:"16px 16px 12px", borderBottom:"1px solid #1e2d3d" }}>
               <span style={{ fontSize:20 }}>🎓</span>
               <span style={{ color:"#e2e8f0", fontWeight:800, fontSize:15 }}>CampusHub</span>
             </div>
             <div style={{ color:"#475569", fontSize:10, fontWeight:700, letterSpacing:1.2, padding:"14px 16px 6px" }}>ROOMS</div>
             {ROOMS.map(room => (
-              <button key={room.id} style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 16px", border:"none", cursor:"pointer", fontSize:13, borderRadius:6, margin:"1px 0", background: activeRoom===room.id ? "rgba(108,99,255,0.2)" : "transparent", color: activeRoom===room.id ? "#a89eff" : "#94a3b8", fontWeight: activeRoom===room.id ? 700 : 400 }}
+              <button key={room.id} style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 16px", border:"none", cursor:"pointer", fontSize:13, borderRadius:6, margin:"1px 0",
+                background: activeRoom===room.id ? "rgba(108,99,255,0.2)" : "transparent",
+                color: activeRoom===room.id ? "#a89eff" : "#94a3b8", fontWeight: activeRoom===room.id ? 700 : 400 }}
                 onClick={()=>{ setActiveRoom(room.id); setSidebarOpen(false); }}>
                 {room.emoji} {room.label}
               </button>
             ))}
-            <div style={{ marginTop:"auto", padding:"12px 14px", borderTop:"1px solid #1e2d3d", display:"flex", alignItems:"center", gap:8 }}>
-              <div style={{ width:32, height:32, borderRadius:"50%", background: profile?.avatar_color||"#6C63FF", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:11 }}>{profile?.username?.slice(0,2).toUpperCase()}</div>
-              <div style={{ flex:1, color:"#e2e8f0", fontSize:13, fontWeight:600 }}>{profile?.username}</div>
-              <button style={{ background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:16 }} onClick={logout}>⏻</button>
+            <div style={{ marginTop:"auto", padding:"12px 14px", borderTop:"1px solid #1e2d3d" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                <div style={{ width:36, height:36, borderRadius:"50%", background: profile?.avatar_color||"#6C63FF", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:12, flexShrink:0 }}>{profile?.username?.slice(0,2).toUpperCase()}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ color:"#e2e8f0", fontSize:13, fontWeight:600 }}>{profile?.username}</div>
+                  <div style={{ color:"#475569", fontSize:11 }}>{profile?.level} · {profile?.department}</div>
+                </div>
+                <button style={{ background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:16 }} onClick={logout}>⏻</button>
+              </div>
+              <div style={{ color:"#475569", fontSize:11 }}>ID: {profile?.student_id}</div>
+              {whatsappLink && (
+                <a href={whatsappLink} target="_blank" style={{ display:"block", marginTop:8, background:"#25D366", borderRadius:8, padding:"6px 12px", color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none", textAlign:"center" }}>
+                  💬 WhatsApp
+                </a>
+              )}
             </div>
           </aside>
           <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
