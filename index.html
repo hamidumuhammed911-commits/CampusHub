@@ -61,9 +61,7 @@
         method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message || "Reset failed");
-      return data;
+      return await res.json();
     }
 
     const ROOMS = [
@@ -75,12 +73,45 @@
     ];
 
     const LEVELS = ["100L", "200L", "300L", "400L", "500L"];
-    const COLORS = ["#6C63FF","#FF6584","#43B89C","#F4A261","#4FC3F7"];
+    const COLORS = ["#6C63FF","#FF6584","#43B89C","#F4A261","#4FC3F7","#FF8A65","#A29BFE"];
     const randomColor = () => COLORS[Math.floor(Math.random() * COLORS.length)];
     const timeStr = ts => new Date(ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
 
     const INP = { width:"100%", background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:10, padding:"11px 14px", color:"#e2e8f0", fontSize:14, outline:"none", marginBottom:10, display:"block" };
     const BTN = { width:"100%", background:"#6C63FF", border:"none", borderRadius:10, padding:12, color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer" };
+
+    function Avatar({ name, color, size = 36 }) {
+      return (
+        <div style={{ width:size, height:size, borderRadius:"50%", background: color||"#6C63FF",
+          display:"flex", alignItems:"center", justifyContent:"center", color:"#fff",
+          fontWeight:700, fontSize: size * 0.33, flexShrink:0 }}>
+          {name?.slice(0,2).toUpperCase()}
+        </div>
+      );
+    }
+
+    function ProfileCard({ p, onClose }) {
+      if (!p) return null;
+      const wa = p.phone ? `https://wa.me/${p.phone.replace(/[^0-9]/g,'')}` : null;
+      return (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
+          onClick={onClose}>
+          <div style={{ background:"#111827", border:"1px solid #2d3f55", borderRadius:20, padding:24, width:"100%", maxWidth:320, textAlign:"center" }}
+            onClick={e=>e.stopPropagation()}>
+            <Avatar name={p.username} color={p.avatar_color} size={72} />
+            <h2 style={{ color:"#e2e8f0", fontWeight:800, fontSize:20, marginTop:12 }}>{p.username}</h2>
+            <div style={{ color:"#a89eff", fontSize:13, marginTop:4 }}>{p.student_id}</div>
+            <div style={{ marginTop:16, display:"flex", flexDirection:"column", gap:8 }}>
+              {p.university && <div style={{ background:"#1e2a3a", borderRadius:10, padding:"8px 14px", color:"#94a3b8", fontSize:13 }}>🏫 {p.university}</div>}
+              {p.department && <div style={{ background:"#1e2a3a", borderRadius:10, padding:"8px 14px", color:"#94a3b8", fontSize:13 }}>📚 {p.department}</div>}
+              {p.level && <div style={{ background:"#1e2a3a", borderRadius:10, padding:"8px 14px", color:"#94a3b8", fontSize:13 }}>🎓 {p.level}</div>}
+            </div>
+            {wa && <a href={wa} target="_blank" style={{ display:"block", marginTop:16, background:"#25D366", borderRadius:10, padding:"10px", color:"#fff", fontSize:14, fontWeight:700, textDecoration:"none" }}>💬 WhatsApp</a>}
+            <button style={{ background:"none", border:"none", color:"#64748b", fontSize:13, cursor:"pointer", marginTop:12 }} onClick={onClose}>Close</button>
+          </div>
+        </div>
+      );
+    }
 
     function App() {
       const [screen, setScreen] = useState("login");
@@ -91,15 +122,18 @@
       const [department, setDepartment] = useState("");
       const [level, setLevel] = useState("");
       const [phone, setPhone] = useState("");
+      const [university, setUniversity] = useState("");
       const [authErr, setAuthErr] = useState("");
       const [loading, setLoading] = useState(false);
       const [session, setSession] = useState(null);
       const [profile, setProfile] = useState(null);
       const [activeRoom, setActiveRoom] = useState("general");
       const [messages, setMessages] = useState([]);
+      const [profiles, setProfiles] = useState({});
       const [input, setInput] = useState("");
       const [sending, setSending] = useState(false);
       const [sidebarOpen, setSidebarOpen] = useState(false);
+      const [viewProfile, setViewProfile] = useState(null);
       const bottomRef = useRef(null);
       const pollRef = useRef(null);
 
@@ -118,22 +152,31 @@
           const data = await sbFetch(`/messages?room=eq.${activeRoom}&order=created_at.asc&limit=50`,
             { headers: { Authorization: `Bearer ${session.access_token}` } });
           setMessages(data);
+          // load profiles for all users in messages
+          const ids = [...new Set(data.map(m => m.user_id))];
+          if (ids.length) {
+            const ps = await sbFetch(`/profiles?id=in.(${ids.join(',')})`,
+              { headers: { Authorization: `Bearer ${session.access_token}` } });
+            const map = {};
+            ps.forEach(p => map[p.id] = p);
+            setProfiles(map);
+          }
         } catch(e) {}
       }
 
       async function handleSignup() {
-        if (!email || !password || !username || !studentId || !department || !level || !phone)
+        if (!email || !password || !username || !studentId || !department || !level || !phone || !university)
           return setAuthErr("Please fill in all fields.");
         if (password.length < 6) return setAuthErr("Password must be at least 6 characters.");
         setLoading(true); setAuthErr("");
         try {
           const data = await signUp(email, password);
           const userId = data.user?.id;
-          if (!userId) throw new Error("Check your email for confirmation link, then log in.");
+          if (!userId) throw new Error("Signup incomplete. Try logging in.");
           await sbFetch("/profiles", { method:"POST",
             body: JSON.stringify({ id: userId, username, avatar_color: randomColor(),
-              student_id: studentId, department, level, phone }) });
-          setAuthErr("✅ Account created! Check your email to confirm, then log in.");
+              student_id: studentId, department, level, phone, university }) });
+          setAuthErr("✅ Account created! Please log in.");
           setScreen("login");
         } catch(e) { setAuthErr(e.message); }
         setLoading(false);
@@ -144,10 +187,10 @@
         setLoading(true); setAuthErr("");
         try {
           const data = await signIn(email, password);
-          const profiles = await sbFetch(`/profiles?id=eq.${data.user?.id}`,
+          const ps = await sbFetch(`/profiles?id=eq.${data.user?.id}`,
             { headers: { Authorization: `Bearer ${data.access_token}` } });
-          if (!profiles.length) throw new Error("Profile not found. Please sign up first.");
-          setSession(data); setProfile(profiles[0]); setScreen("chat");
+          if (!ps.length) throw new Error("Profile not found. Please sign up first.");
+          setSession(data); setProfile(ps[0]); setScreen("chat");
         } catch(e) { setAuthErr(e.message); }
         setLoading(false);
       }
@@ -157,7 +200,7 @@
         setLoading(true); setAuthErr("");
         try {
           await resetPassword(email);
-          setAuthErr("✅ Password reset email sent! Check your inbox.");
+          setAuthErr("✅ Password reset email sent!");
         } catch(e) { setAuthErr(e.message); }
         setLoading(false);
       }
@@ -180,8 +223,6 @@
         setScreen("login"); setEmail(""); setPassword("");
         clearInterval(pollRef.current);
       }
-
-      const whatsappLink = profile?.phone ? `https://wa.me/${profile.phone.replace(/[^0-9]/g,'')}` : null;
 
       if (screen === "forgot") {
         return (
@@ -211,15 +252,12 @@
               <div style={{ fontSize:44, marginBottom:10 }}>🎓</div>
               <h1 style={{ color:"#e2e8f0", fontWeight:800, fontSize:24, marginBottom:4 }}>CampusHub</h1>
               <p style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>{isLogin ? "Welcome back 👋" : "Join your campus community"}</p>
-
-              {!isLogin && <>
-                <input style={INP} placeholder="Full name" value={username} onChange={e=>setUsername(e.target.value)} />
-              </>}
+              {!isLogin && <input style={INP} placeholder="Full name" value={username} onChange={e=>setUsername(e.target.value)} />}
               <input style={INP} placeholder="Email address" value={email} type="email" onChange={e=>setEmail(e.target.value)} />
               <input style={INP} placeholder="Password (min 6 characters)" value={password} type="password" onChange={e=>setPassword(e.target.value)} />
-
               {!isLogin && <>
                 <input style={INP} placeholder="Student ID (e.g. STU/2024/001)" value={studentId} onChange={e=>setStudentId(e.target.value)} />
+                <input style={INP} placeholder="University name" value={university} onChange={e=>setUniversity(e.target.value)} />
                 <input style={INP} placeholder="Department / Course" value={department} onChange={e=>setDepartment(e.target.value)} />
                 <select style={{ ...INP, appearance:"none" }} value={level} onChange={e=>setLevel(e.target.value)}>
                   <option value="">Select Level</option>
@@ -227,20 +265,12 @@
                 </select>
                 <input style={INP} placeholder="WhatsApp number (e.g. 2348012345678)" value={phone} onChange={e=>setPhone(e.target.value)} />
               </>}
-
               {authErr && <div style={{ color: authErr.startsWith("✅") ? "#4ade80" : "#f87171", fontSize:13, marginBottom:10 }}>{authErr}</div>}
-
               <button style={{ ...BTN, opacity: loading ? 0.6 : 1 }} onClick={isLogin ? handleLogin : handleSignup} disabled={loading}>
                 {loading ? "Please wait..." : isLogin ? "Log in →" : "Create Account →"}
               </button>
-
-              {isLogin && (
-                <button style={{ background:"none", border:"none", color:"#94a3b8", fontSize:13, cursor:"pointer", marginTop:10, display:"block", width:"100%", textAlign:"center" }}
-                  onClick={()=>{ setScreen("forgot"); setAuthErr(""); }}>
-                  Forgot password?
-                </button>
-              )}
-
+              {isLogin && <button style={{ background:"none", border:"none", color:"#94a3b8", fontSize:13, cursor:"pointer", marginTop:10, display:"block", width:"100%", textAlign:"center" }}
+                onClick={()=>{ setScreen("forgot"); setAuthErr(""); }}>Forgot password?</button>}
               <button style={{ background:"none", border:"none", color:"#6C63FF", fontSize:13, cursor:"pointer", marginTop:8 }}
                 onClick={()=>{ setScreen(isLogin?"signup":"login"); setAuthErr(""); }}>
                 {isLogin ? "No account? Sign up" : "Have an account? Log in"}
@@ -253,7 +283,9 @@
       const currentRoom = ROOMS.find(r => r.id === activeRoom);
       return (
         <div style={{ display:"flex", height:"100vh", background:"#0d1520", overflow:"hidden", position:"relative" }}>
+          {viewProfile && <ProfileCard p={viewProfile} onClose={()=>setViewProfile(null)} />}
           {sidebarOpen && <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:10 }} onClick={()=>setSidebarOpen(false)} />}
+          
           <aside style={{ width:240, background:"#111827", display:"flex", flexDirection:"column", borderRight:"1px solid #1e2d3d", position:"fixed", height:"100%", zIndex:20, transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)", transition:"transform 0.2s" }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, padding:"16px 16px 12px", borderBottom:"1px solid #1e2d3d" }}>
               <span style={{ fontSize:20 }}>🎓</span>
@@ -268,23 +300,24 @@
                 {room.emoji} {room.label}
               </button>
             ))}
-            <div style={{ marginTop:"auto", padding:"12px 14px", borderTop:"1px solid #1e2d3d" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                <div style={{ width:36, height:36, borderRadius:"50%", background: profile?.avatar_color||"#6C63FF", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:12, flexShrink:0 }}>{profile?.username?.slice(0,2).toUpperCase()}</div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ color:"#e2e8f0", fontSize:13, fontWeight:600 }}>{profile?.username}</div>
-                  <div style={{ color:"#475569", fontSize:11 }}>{profile?.level} · {profile?.department}</div>
+
+            {/* My Profile */}
+            <div style={{ marginTop:"auto", borderTop:"1px solid #1e2d3d" }}>
+              <button style={{ width:"100%", background:"none", border:"none", cursor:"pointer", padding:"12px 14px", textAlign:"left" }}
+                onClick={()=>{ setViewProfile(profile); setSidebarOpen(false); }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <Avatar name={profile?.username} color={profile?.avatar_color} size={38} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ color:"#e2e8f0", fontSize:13, fontWeight:700 }}>{profile?.username}</div>
+                    <div style={{ color:"#6C63FF", fontSize:11 }}>{profile?.level} · {profile?.department}</div>
+                    <div style={{ color:"#475569", fontSize:10, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{profile?.university}</div>
+                  </div>
+                  <button style={{ background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:16, padding:4 }} onClick={e=>{ e.stopPropagation(); logout(); }}>⏻</button>
                 </div>
-                <button style={{ background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:16 }} onClick={logout}>⏻</button>
-              </div>
-              <div style={{ color:"#475569", fontSize:11 }}>ID: {profile?.student_id}</div>
-              {whatsappLink && (
-                <a href={whatsappLink} target="_blank" style={{ display:"block", marginTop:8, background:"#25D366", borderRadius:8, padding:"6px 12px", color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none", textAlign:"center" }}>
-                  💬 WhatsApp
-                </a>
-              )}
+              </button>
             </div>
           </aside>
+
           <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
             <div style={{ padding:"12px 16px", borderBottom:"1px solid #1e2d3d", background:"#111827", display:"flex", alignItems:"center", gap:12 }}>
               <button style={{ background:"none", border:"none", color:"#94a3b8", fontSize:20, cursor:"pointer" }} onClick={()=>setSidebarOpen(!sidebarOpen)}>☰</button>
@@ -293,39 +326,17 @@
                 <div style={{ color:"#475569", fontSize:11 }}>{messages.length} messages</div>
               </div>
             </div>
-            <div style={{ flex:1, overflowY:"auto", padding:16, display:"flex", flexDirection:"column", gap:12 }}>
+
+            <div style={{ flex:1, overflowY:"auto", padding:16, display:"flex", flexDirection:"column", gap:16 }}>
               {messages.length===0 && <div style={{ color:"#475569", textAlign:"center", marginTop:40 }}>No messages yet — say hello! 👋</div>}
               {messages.map(msg => {
                 const isOwn = msg.user_id === session?.user?.id;
+                const p = profiles[msg.user_id];
                 return (
-                  <div key={msg.id} style={{ display:"flex", alignItems:"flex-end", gap:8, flexDirection: isOwn?"row-reverse":"row" }}>
-                    <div style={{ width:32, height:32, borderRadius:"50%", background: msg.avatar_color||"#6C63FF", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:11, flexShrink:0 }}>{msg.username?.slice(0,2).toUpperCase()}</div>
-                    <div style={{ maxWidth:"68%", display:"flex", flexDirection:"column", alignItems: isOwn?"flex-end":"flex-start" }}>
-                      <div style={{ marginBottom:3 }}>
-                        <span style={{ color: isOwn?"#a89eff":(msg.avatar_color||"#6C63FF"), fontWeight:700, fontSize:12 }}>{isOwn?"You":msg.username}</span>
-                        <span style={{ color:"#475569", fontSize:11, marginLeft:6 }}>{timeStr(msg.created_at)}</span>
-                      </div>
-                      <div style={{ padding:"9px 13px", color:"#e2e8f0", fontSize:14, lineHeight:1.5, wordBreak:"break-word", background: isOwn?"#6C63FF":"#1e2a3a", borderRadius: isOwn?"18px 18px 4px 18px":"18px 18px 18px 4px" }}>{msg.content}</div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={bottomRef} />
-            </div>
-            <div style={{ padding:"12px 16px", borderTop:"1px solid #1e2d3d", background:"#111827", display:"flex", gap:8, alignItems:"center" }}>
-              <input style={{ flex:1, background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:12, padding:"10px 14px", color:"#e2e8f0", fontSize:14, outline:"none" }}
-                placeholder={`Message #${currentRoom?.label}...`} value={input} onChange={e=>setInput(e.target.value)}
-                onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendMessage(); } }} />
-              <button style={{ width:38, height:38, borderRadius:"50%", background:"#6C63FF", border:"none", color:"#fff", fontSize:18, cursor:"pointer", fontWeight:700, opacity: input.trim()&&!sending?1:0.4 }}
-                onClick={sendMessage} disabled={!input.trim()||sending}>{sending?"…":"↑"}</button>
-            </div>
-          </main>
-        </div>
-      );
-    }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-</body>
-</html>
+                  <div key={msg.id} style={{ display:"flex", alignItems:"flex-start", gap:10, flexDirection: isOwn?"row-reverse":"row" }}>
+                    <button style={{ background:"none", border:"none", cursor:"pointer", padding:0 }}
+                      onClick={()=> p && setViewProfile(p)}>
+                      <Avatar name={msg.username} color={msg.avatar_color} size={38} />
+                    </button>
+                    <div style={{ maxWidth:"70%", display:"flex", flexDirection:"column", alignItems: isOwn?"flex-end":"flex-start" }}>
+     
