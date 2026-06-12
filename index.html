@@ -658,4 +658,280 @@ function AuthScreen({ onAuth }) {
             </div>
             <div className="form-grid">
               <div className="form-group">
-         
+         <label>Email</label>
+                <input type="email" placeholder="you@university.edu" value={forgotEmail}
+                  onChange={e => setForgotEmail(e.target.value)} required />
+              </div>
+              <button className="btn btn-primary" type="submit" disabled={loading}>
+                {loading ? "Sending…" : "Send Reset Link"}
+              </button>
+            </div>
+            <div className="auth-footer" style={{marginTop:14}}>
+              <button type="button" className="btn-link" onClick={() => { setTab("login"); setMsg(null); }}>
+                ← Back to Log In
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ──────────── MAIN APP ────────────
+function App() {
+  const [session,     setSession]     = useState(null);
+  const [profile,     setProfile]     = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [room,        setRoom]        = useState("general");
+  const [messages,    setMessages]    = useState([]);
+  const [text,        setText]        = useState("");
+  const [sending,     setSending]     = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState({});
+  const bottomRef  = useRef(null);
+  const channelRef = useRef(null);
+
+  // Auth listener
+  useEffect(() => {
+    sb.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load profile
+  useEffect(() => {
+    if (!session) return;
+    sb.from("profiles").select("*").eq("id", session.user.id).single()
+      .then(({ data }) => setProfile(data));
+  }, [session]);
+
+  // Realtime Presence
+  useEffect(() => {
+    if (!session || !profile) return;
+    if (channelRef.current) sb.removeChannel(channelRef.current);
+
+    const ch = sb.channel("campus-presence", {
+      config: { presence: { key: session.user.id } }
+    });
+
+    ch.on("presence", { event: "sync" }, () => {
+      const state = ch.presenceState();
+      const map = {};
+      Object.entries(state).forEach(([uid, presences]) => {
+        const p = presences[0];
+        if (p) map[uid] = { name: p.name || "Student", room: p.room || "general" };
+      });
+      setOnlineUsers(map);
+    });
+
+    ch.subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await ch.track({
+          name: profile.full_name || session.user.email?.split("@")[0] || "Student",
+          room: room
+        });
+      }
+    });
+
+    channelRef.current = ch;
+    return () => { sb.removeChannel(ch); };
+  }, [session, profile]);
+
+  // Re-track room change
+  useEffect(() => {
+    if (!channelRef.current || !session) return;
+    const displayName = profile?.full_name || session.user.email?.split("@")[0] || "Student";
+    channelRef.current.track({ name: displayName, room }).catch(() => {});
+  }, [room]);
+
+  // Poll messages
+  useEffect(() => {
+    if (!session) return;
+    fetchMessages();
+    const iv = setInterval(fetchMessages, 3000);
+    return () => clearInterval(iv);
+  }, [room, session]);
+
+  async function fetchMessages() {
+    const { data } = await sb
+      .from("messages")
+      .select("*, profiles(full_name, student_id, department, level, phone)")
+      .eq("room", room)
+      .order("created_at", { ascending: true })
+      .limit(100);
+    if (data) {
+      setMessages(data);
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    }
+  }
+
+  async function sendMessage(e) {
+    e.preventDefault();
+    if (!text.trim()) return;
+    setSending(true);
+    await sb.from("messages").insert({
+      room,
+      content:    text.trim(),
+      user_id:    session.user.id,
+      created_at: new Date().toISOString()
+    });
+    setText("");
+    setSending(false);
+    fetchMessages();
+  }
+
+  async function signOut() {
+    await sb.auth.signOut();
+    setSession(null);
+    setProfile(null);
+  }
+
+  if (loading) return (
+    <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)"}}>
+      Loading…
+    </div>
+  );
+
+  if (!session) return <AuthScreen onAuth={() => sb.auth.getSession().then(({ data }) => setSession(data.session))} />;
+
+  const displayName = profile?.full_name || session.user.email?.split("@")[0] || "Student";
+  const activeRoom  = ROOMS.find(r => r.id === room);
+
+  return (
+    <div className="app">
+
+      {/* SIDEBAR */}
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <span style={{fontSize:22}}>🎓</span>
+          <span className="logo-text">Campus<span>Hub</span></span>
+        </div>
+
+        {(() => {
+          const users = Object.values(onlineUsers);
+          const names = users.map(u => u.name.split(" ")[0]).join(", ");
+          return users.length > 0 ? (
+            <div className="online-bar">
+              <span className="online-dot" />
+              <span className="online-label">{users.length} online</span>
+              <span className="online-names" title={names}>{names}</span>
+            </div>
+          ) : null;
+        })()}
+
+        <div className="sidebar-section">Rooms</div>
+        <div className="room-list">
+          {ROOMS.map(r => {
+            const count = Object.values(onlineUsers).filter(u => u.room === r.id).length;
+            return (
+              <button key={r.id} className={`room-btn ${room===r.id ? "active" : ""}`} onClick={() => setRoom(r.id)}>
+                <span className="hash">#</span>
+                {r.label}
+                {count > 0 && (
+                  <span className="room-meta">
+                    <span className="room-online-count">{count}</span>
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="sidebar-footer">
+          <div className="user-info">
+            <div className="avatar" style={{background: avatarColor(displayName)}}>
+              {initials(displayName)}
+            </div>
+            <div>
+              <div className="user-name">{displayName}</div>
+              <div className="user-dept">{profile?.department || "Student"} · {profile?.level || ""}</div>
+            </div>
+          </div>
+          <button className="btn-signout" onClick={signOut}>Sign Out</button>
+        </div>
+      </aside>
+
+      {/* CHAT */}
+      <main className="chat-area">
+        <div className="chat-header">
+          <div>
+            <h2># {activeRoom?.label}</h2>
+            <p>
+              {activeRoom?.desc}
+              {(() => {
+                const here = Object.values(onlineUsers).filter(u => u.room === room).length;
+                return here > 0
+                  ? <span style={{marginLeft:10, color:"#3fb950", fontWeight:600}}>● {here} here now</span>
+                  : null;
+              })()}
+            </p>
+          </div>
+        </div>
+
+        <div className="messages">
+          {messages.length === 0 ? (
+            <div className="empty-state">
+              <span className="icon">💬</span>
+              <p>No messages yet. Say hello!</p>
+            </div>
+          ) : messages.map(m => {
+            const sender = m.profiles?.full_name || "Unknown";
+            const phone  = m.profiles?.phone;
+            return (
+              <div className="message" key={m.id}>
+                <div className="msg-avatar" style={{background: avatarColor(sender)}}>
+                  {initials(sender)}
+                </div>
+                <div className="msg-body">
+                  <div className="msg-meta">
+                    <span className="msg-sender">{sender}</span>
+                    {m.profiles?.level && (
+                      <span style={{fontSize:11,color:"var(--muted)",background:"var(--surface2)",padding:"1px 6px",borderRadius:4}}>
+                        {m.profiles.level}
+                      </span>
+                    )}
+                    {phone && (
+                      <a className="wa-link" href={waLink(phone)} target="_blank" rel="noopener noreferrer">
+                        📲 WhatsApp
+                      </a>
+                    )}
+                    <span className="msg-time">{fmtTime(m.created_at)}</span>
+                  </div>
+                  <div className="msg-text">{m.content}</div>
+                </div>
+              </div>
+            );
+          })}
+          <div ref={bottomRef} />
+        </div>
+
+        <div className="chat-input-wrap">
+          <form onSubmit={sendMessage}>
+            <div className="chat-input-row">
+              <input
+                type="text"
+                placeholder={`Message #${activeRoom?.label}…`}
+                value={text}
+                onChange={e => setText(e.target.value)}
+                disabled={sending}
+                autoComplete="off"
+              />
+              <button className="send-btn" type="submit" disabled={sending || !text.trim()}>
+                {sending ? "…" : "Send"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </main>
+
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
