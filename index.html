@@ -25,6 +25,20 @@
 
     const SUPABASE_URL = "https://vwrqdstapeguqjvlwrps.supabase.co";
     const SUPABASE_KEY = "sb_publishable_Irsq6di1d317hycpvsD__A_YTQD60ra";
+    const CLOUDINARY_CLOUD = "dybylicd7";
+    const CLOUDINARY_PRESET = "campushub";
+
+    async function uploadToCloudinary(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", CLOUDINARY_PRESET);
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
+        method: "POST", body: formData,
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      return data.secure_url;
+    }
 
     async function sbFetch(path, options = {}) {
       const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
@@ -81,12 +95,49 @@
     const BTN = { width:"100%", background:"#6C63FF", border:"none", borderRadius:10, padding:12, color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer" };
 
     function Avatar({ name, color, url, size = 36 }) {
-      if (url) return <img src={url} alt={name} style={{ width:size, height:size, borderRadius:"50%", objectFit:"cover", flexShrink:0, border:"2px solid #2d3f55" }} onError={e=>{ e.target.style.display="none"; }} />;
+      const [imgErr, setImgErr] = useState(false);
+      if (url && !imgErr) return <img src={url} alt={name} style={{ width:size, height:size, borderRadius:"50%", objectFit:"cover", flexShrink:0, border:"2px solid #2d3f55" }} onError={()=>setImgErr(true)} />;
       return (
         <div style={{ width:size, height:size, borderRadius:"50%", background: color||"#6C63FF",
           display:"flex", alignItems:"center", justifyContent:"center", color:"#fff",
           fontWeight:700, fontSize: size * 0.33, flexShrink:0 }}>
           {name?.slice(0,2).toUpperCase()}
+        </div>
+      );
+    }
+
+    function PhotoUploader({ currentUrl, currentColor, name, onUpload }) {
+      const [uploading, setUploading] = useState(false);
+      const [preview, setPreview] = useState(currentUrl || "");
+      const fileRef = useRef();
+
+      async function handleFile(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        setUploading(true);
+        try {
+          const url = await uploadToCloudinary(file);
+          setPreview(url);
+          onUpload(url);
+        } catch(err) {
+          alert("Upload failed. Try again.");
+        }
+        setUploading(false);
+      }
+
+      return (
+        <div style={{ textAlign:"center", marginBottom:16 }}>
+          <div style={{ position:"relative", display:"inline-block" }}>
+            <Avatar name={name} color={currentColor} url={preview} size={80} />
+            <button style={{ position:"absolute", bottom:0, right:0, width:26, height:26, borderRadius:"50%", background:"#6C63FF", border:"2px solid #111827", color:"#fff", fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+              onClick={()=>fileRef.current.click()} disabled={uploading}>
+              {uploading ? "⏳" : "📷"}
+            </button>
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleFile} />
+          <div style={{ color:"#475569", fontSize:11, marginTop:6 }}>
+            {uploading ? "Uploading..." : "Tap 📷 to change photo"}
+          </div>
         </div>
       );
     }
@@ -103,7 +154,7 @@
             <h2 style={{ color:"#e2e8f0", fontWeight:800, fontSize:20, marginTop:12 }}>{p.username}</h2>
             <div style={{ color:"#a89eff", fontSize:13, marginTop:4 }}>{p.student_id}</div>
             <div style={{ marginTop:16, display:"flex", flexDirection:"column", gap:8 }}>
-              {p.university && <div style={{ background:"#1e2a3a", borderRadius:10, padding:"8px 14px", color:"#94a3b8", fontSize:13 }}>🏫 {p.university}</div>}
+              {p.university && p.university !== "Not specified" && <div style={{ background:"#1e2a3a", borderRadius:10, padding:"8px 14px", color:"#94a3b8", fontSize:13 }}>🏫 {p.university}</div>}
               {p.department && <div style={{ background:"#1e2a3a", borderRadius:10, padding:"8px 14px", color:"#94a3b8", fontSize:13 }}>📚 {p.department}</div>}
               {p.level && <div style={{ background:"#1e2a3a", borderRadius:10, padding:"8px 14px", color:"#94a3b8", fontSize:13 }}>🎓 {p.level}</div>}
             </div>
@@ -142,14 +193,7 @@
           <div style={{ background:"#111827", border:"1px solid #2d3f55", borderRadius:20, padding:24, width:"100%", maxWidth:380 }}>
             <h2 style={{ color:"#e2e8f0", fontWeight:800, fontSize:18, marginBottom:16, textAlign:"center" }}>✏️ Edit Profile</h2>
             
-            {/* Avatar preview */}
-            <div style={{ textAlign:"center", marginBottom:16 }}>
-              <Avatar name={profile?.username} color={profile?.avatar_color} url={avatarUrl} size={80} />
-            </div>
-
-            <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>Profile Picture URL</label>
-            <input style={INP} placeholder="Paste image URL (e.g. from Google Photos)" value={avatarUrl} onChange={e=>setAvatarUrl(e.target.value)} />
-            <div style={{ color:"#475569", fontSize:11, marginTop:-8, marginBottom:10 }}>Tip: Upload to imgur.com and paste the link here</div>
+            <PhotoUploader currentUrl={avatarUrl} currentColor={profile?.avatar_color} name={profile?.username} onUpload={url=>setAvatarUrl(url)} />
 
             <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>School / University</label>
             <input style={INP} placeholder="University or school name" value={university} onChange={e=>setUniversity(e.target.value)} />
@@ -188,6 +232,7 @@
       const [phone, setPhone] = useState("");
       const [university, setUniversity] = useState("");
       const [avatarUrl, setAvatarUrl] = useState("");
+      const [uploadingAvatar, setUploadingAvatar] = useState(false);
       const [authErr, setAuthErr] = useState("");
       const [loading, setLoading] = useState(false);
       const [session, setSession] = useState(null);
@@ -202,6 +247,7 @@
       const [showEdit, setShowEdit] = useState(false);
       const bottomRef = useRef(null);
       const pollRef = useRef(null);
+      const signupFileRef = useRef();
 
       useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
 
@@ -227,6 +273,17 @@
             setProfiles(map);
           }
         } catch(e) {}
+      }
+
+      async function handleSignupPhoto(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        setUploadingAvatar(true);
+        try {
+          const url = await uploadToCloudinary(file);
+          setAvatarUrl(url);
+        } catch(err) { alert("Photo upload failed. Try again."); }
+        setUploadingAvatar(false);
       }
 
       async function handleSignup() {
@@ -319,125 +376,10 @@
               <div style={{ fontSize:44, marginBottom:10 }}>🎓</div>
               <h1 style={{ color:"#e2e8f0", fontWeight:800, fontSize:24, marginBottom:4 }}>CampusHub</h1>
               <p style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>{isLogin ? "Welcome back 👋" : "For every student — jambite to graduate 🎓"}</p>
+              
               {!isLogin && <>
-                <input style={INP} placeholder="Full name" value={username} onChange={e=>setUsername(e.target.value)} />
-              </>}
-              <input style={INP} placeholder="Email address" value={email} type="email" onChange={e=>setEmail(e.target.value)} />
-              <input style={INP} placeholder="Password (min 6 characters)" value={password} type="password" onChange={e=>setPassword(e.target.value)} />
-              {!isLogin && <>
-                <input style={INP} placeholder="Student / Jamb ID" value={studentId} onChange={e=>setStudentId(e.target.value)} />
-                <input style={INP} placeholder="School / University (optional)" value={university} onChange={e=>setUniversity(e.target.value)} />
-                <input style={INP} placeholder="Department / Course" value={department} onChange={e=>setDepartment(e.target.value)} />
-                <select style={{ ...INP, appearance:"none" }} value={level} onChange={e=>setLevel(e.target.value)}>
-                  <option value="">Select Level</option>
-                  {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
-                <input style={INP} placeholder="WhatsApp number (e.g. 2348012345678)" value={phone} onChange={e=>setPhone(e.target.value)} />
-                <input style={INP} placeholder="Profile picture URL (optional)" value={avatarUrl} onChange={e=>setAvatarUrl(e.target.value)} />
-                {avatarUrl && <img src={avatarUrl} style={{ width:60, height:60, borderRadius:"50%", objectFit:"cover", margin:"0 auto 10px", display:"block", border:"2px solid #6C63FF" }} onError={e=>e.target.style.display="none"} />}
-              </>}
-              {authErr && <div style={{ color: authErr.startsWith("✅") ? "#4ade80" : "#f87171", fontSize:13, marginBottom:10 }}>{authErr}</div>}
-              <button style={{ ...BTN, opacity: loading ? 0.6 : 1 }} onClick={isLogin ? handleLogin : handleSignup} disabled={loading}>
-                {loading ? "Please wait..." : isLogin ? "Log in →" : "Create Account →"}
-              </button>
-              {isLogin && <button style={{ background:"none", border:"none", color:"#94a3b8", fontSize:13, cursor:"pointer", marginTop:10, display:"block", width:"100%", textAlign:"center" }}
-                onClick={()=>{ setScreen("forgot"); setAuthErr(""); }}>Forgot password?</button>}
-              <button style={{ background:"none", border:"none", color:"#6C63FF", fontSize:13, cursor:"pointer", marginTop:8 }}
-                onClick={()=>{ setScreen(isLogin?"signup":"login"); setAuthErr(""); }}>
-                {isLogin ? "No account? Sign up" : "Have an account? Log in"}
-              </button>
-            </div>
-          </div>
-        );
-      }
-
-      const currentRoom = ROOMS.find(r => r.id === activeRoom);
-      return (
-        <div style={{ display:"flex", height:"100vh", background:"#0d1520", overflow:"hidden", position:"relative" }}>
-          {viewProfile && <ProfileCard p={viewProfile} onClose={()=>setViewProfile(null)} isOwn={viewProfile.id===profile?.id} onEdit={()=>setShowEdit(true)} />}
-          {showEdit && <EditProfile profile={profile} session={session} onClose={()=>setShowEdit(false)} onSave={p=>{ setProfile(p); setShowEdit(false); }} />}
-          {sidebarOpen && <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:10 }} onClick={()=>setSidebarOpen(false)} />}
-          
-          <aside style={{ width:240, background:"#111827", display:"flex", flexDirection:"column", borderRight:"1px solid #1e2d3d", position:"fixed", height:"100%", zIndex:20, transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)", transition:"transform 0.2s" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"16px 16px 12px", borderBottom:"1px solid #1e2d3d" }}>
-              <span style={{ fontSize:20 }}>🎓</span>
-              <span style={{ color:"#e2e8f0", fontWeight:800, fontSize:15 }}>CampusHub</span>
-            </div>
-            <div style={{ color:"#475569", fontSize:10, fontWeight:700, letterSpacing:1.2, padding:"14px 16px 6px" }}>ROOMS</div>
-            {ROOMS.map(room => (
-              <button key={room.id} style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 16px", border:"none", cursor:"pointer", fontSize:13, borderRadius:6, margin:"1px 0",
-                background: activeRoom===room.id ? "rgba(108,99,255,0.2)" : "transparent",
-                color: activeRoom===room.id ? "#a89eff" : "#94a3b8", fontWeight: activeRoom===room.id ? 700 : 400 }}
-                onClick={()=>{ setActiveRoom(room.id); setSidebarOpen(false); }}>
-                {room.emoji} {room.label}
-              </button>
-            ))}
-            <div style={{ marginTop:"auto", borderTop:"1px solid #1e2d3d" }}>
-              <button style={{ width:"100%", background:"none", border:"none", cursor:"pointer", padding:"12px 14px", textAlign:"left" }}
-                onClick={()=>{ setViewProfile(profile); setSidebarOpen(false); }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <Avatar name={profile?.username} color={profile?.avatar_color} url={profile?.avatar_url} size={38} />
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ color:"#e2e8f0", fontSize:13, fontWeight:700 }}>{profile?.username}</div>
-                    <div style={{ color:"#6C63FF", fontSize:11 }}>{profile?.level}</div>
-                    <div style={{ color:"#475569", fontSize:10, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{profile?.university}</div>
-                  </div>
-                  <button style={{ background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:16, padding:4 }} onClick={e=>{ e.stopPropagation(); logout(); }}>⏻</button>
-                </div>
-              </button>
-            </div>
-          </aside>
-
-          <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-            <div style={{ padding:"12px 16px", borderBottom:"1px solid #1e2d3d", background:"#111827", display:"flex", alignItems:"center", gap:12 }}>
-              <button style={{ background:"none", border:"none", color:"#94a3b8", fontSize:20, cursor:"pointer" }} onClick={()=>setSidebarOpen(!sidebarOpen)}>☰</button>
-              <div>
-                <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>{currentRoom?.emoji} {currentRoom?.label}</div>
-                <div style={{ color:"#475569", fontSize:11 }}>{messages.length} messages</div>
-              </div>
-            </div>
-
-            <div style={{ flex:1, overflowY:"auto", padding:16, display:"flex", flexDirection:"column", gap:16 }}>
-              {messages.length===0 && <div style={{ color:"#475569", textAlign:"center", marginTop:40 }}>No messages yet — say hello! 👋</div>}
-              {messages.map(msg => {
-                const isOwn = msg.user_id === session?.user?.id;
-                const p = profiles[msg.user_id] || { username: msg.username, avatar_color: msg.avatar_color };
-                return (
-                  <div key={msg.id} style={{ display:"flex", alignItems:"flex-start", gap:10, flexDirection: isOwn?"row-reverse":"row" }}>
-                    <button style={{ background:"none", border:"none", cursor:"pointer", padding:0 }}
-                      onClick={()=> setViewProfile(profiles[msg.user_id] || null)}>
-                      <Avatar name={msg.username} color={msg.avatar_color} url={p.avatar_url} size={38} />
-                    </button>
-                    <div style={{ maxWidth:"70%", display:"flex", flexDirection:"column", alignItems: isOwn?"flex-end":"flex-start" }}>
-                      <div style={{ marginBottom:4, display:"flex", flexDirection:"column", alignItems: isOwn?"flex-end":"flex-start" }}>
-                        <span style={{ color: isOwn?"#a89eff":(msg.avatar_color||"#6C63FF"), fontWeight:700, fontSize:13 }}>{isOwn?"You":msg.username}</span>
-                        {!isOwn && p.department && <span style={{ color:"#475569", fontSize:11 }}>{p.department}{p.level ? ` · ${p.level}` : ""}{p.university && p.university !== "Not specified" ? ` · ${p.university}` : ""}</span>}
-                        <span style={{ color:"#475569", fontSize:11 }}>{timeStr(msg.created_at)}</span>
-                      </div>
-                      <div style={{ padding:"9px 13px", color:"#e2e8f0", fontSize:14, lineHeight:1.5, wordBreak:"break-word",
-                        background: isOwn?"#6C63FF":"#1e2a3a",
-                        borderRadius: isOwn?"18px 18px 4px 18px":"18px 18px 18px 4px" }}>{msg.content}</div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={bottomRef} />
-            </div>
-
-            <div style={{ padding:"12px 16px", borderTop:"1px solid #1e2d3d", background:"#111827", display:"flex", gap:8, alignItems:"center" }}>
-              <input style={{ flex:1, background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:12, padding:"10px 14px", color:"#e2e8f0", fontSize:14, outline:"none" }}
-                placeholder={`Message #${currentRoom?.label}...`} value={input} onChange={e=>setInput(e.target.value)}
-                onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendMessage(); } }} />
-              <button style={{ width:38, height:38, borderRadius:"50%", background:"#6C63FF", border:"none", color:"#fff", fontSize:18, cursor:"pointer", fontWeight:700, opacity: input.trim()&&!sending?1:0.4 }}
-                onClick={sendMessage} disabled={!input.trim()||sending}>{sending?"…":"↑"}</button>
-            </div>
-          </main>
-        </div>
-      );
-    }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-</body>
-</html>
+                {/* Photo upload during signup */}
+                <div style={{ textAlign:"center", marginBottom:16 }}>
+                  <div style={{ position:"relative", display:"inline-block" }}>
+                    <Avatar name={username||"?"} color="#6C63FF" url={avatarUrl} size={72} />
+                    
