@@ -10,8 +10,8 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0d1520; font-family: sans-serif; }
-    input, select { color: #e2e8f0 !important; }
-    input::placeholder { color: #64748b; }
+    input, select, textarea { color: #e2e8f0 !important; }
+    input::placeholder, textarea::placeholder { color: #64748b; }
     select option { background: #1e2a3a; color: #e2e8f0; }
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: #0d1520; }
@@ -72,7 +72,7 @@
       { id: "assignments", label: "assignments", emoji: "📝" },
     ];
 
-    const LEVELS = ["100L", "200L", "300L", "400L", "500L"];
+    const LEVELS = ["Jambite (Pre-university)", "100L", "200L", "300L", "400L", "500L", "Graduate"];
     const COLORS = ["#6C63FF","#FF6584","#43B89C","#F4A261","#4FC3F7","#FF8A65","#A29BFE"];
     const randomColor = () => COLORS[Math.floor(Math.random() * COLORS.length)];
     const timeStr = ts => new Date(ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
@@ -80,7 +80,8 @@
     const INP = { width:"100%", background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:10, padding:"11px 14px", color:"#e2e8f0", fontSize:14, outline:"none", marginBottom:10, display:"block" };
     const BTN = { width:"100%", background:"#6C63FF", border:"none", borderRadius:10, padding:12, color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer" };
 
-    function Avatar({ name, color, size = 36 }) {
+    function Avatar({ name, color, url, size = 36 }) {
+      if (url) return <img src={url} alt={name} style={{ width:size, height:size, borderRadius:"50%", objectFit:"cover", flexShrink:0, border:"2px solid #2d3f55" }} onError={e=>{ e.target.style.display="none"; }} />;
       return (
         <div style={{ width:size, height:size, borderRadius:"50%", background: color||"#6C63FF",
           display:"flex", alignItems:"center", justifyContent:"center", color:"#fff",
@@ -90,7 +91,7 @@
       );
     }
 
-    function ProfileCard({ p, onClose }) {
+    function ProfileCard({ p, onClose, isOwn, onEdit }) {
       if (!p) return null;
       const wa = p.phone ? `https://wa.me/${p.phone.replace(/[^0-9]/g,'')}` : null;
       return (
@@ -98,7 +99,7 @@
           onClick={onClose}>
           <div style={{ background:"#111827", border:"1px solid #2d3f55", borderRadius:20, padding:24, width:"100%", maxWidth:320, textAlign:"center" }}
             onClick={e=>e.stopPropagation()}>
-            <Avatar name={p.username} color={p.avatar_color} size={72} />
+            <Avatar name={p.username} color={p.avatar_color} url={p.avatar_url} size={80} />
             <h2 style={{ color:"#e2e8f0", fontWeight:800, fontSize:20, marginTop:12 }}>{p.username}</h2>
             <div style={{ color:"#a89eff", fontSize:13, marginTop:4 }}>{p.student_id}</div>
             <div style={{ marginTop:16, display:"flex", flexDirection:"column", gap:8 }}>
@@ -107,7 +108,70 @@
               {p.level && <div style={{ background:"#1e2a3a", borderRadius:10, padding:"8px 14px", color:"#94a3b8", fontSize:13 }}>🎓 {p.level}</div>}
             </div>
             {wa && <a href={wa} target="_blank" style={{ display:"block", marginTop:16, background:"#25D366", borderRadius:10, padding:"10px", color:"#fff", fontSize:14, fontWeight:700, textDecoration:"none" }}>💬 WhatsApp</a>}
-            <button style={{ background:"none", border:"none", color:"#64748b", fontSize:13, cursor:"pointer", marginTop:12 }} onClick={onClose}>Close</button>
+            {isOwn && <button style={{ ...BTN, marginTop:12, background:"#1e2a3a" }} onClick={()=>{ onClose(); onEdit(); }}>✏️ Edit Profile</button>}
+            <button style={{ background:"none", border:"none", color:"#64748b", fontSize:13, cursor:"pointer", marginTop:8 }} onClick={onClose}>Close</button>
+          </div>
+        </div>
+      );
+    }
+
+    function EditProfile({ profile, session, onSave, onClose }) {
+      const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
+      const [university, setUniversity] = useState(profile?.university || "");
+      const [department, setDepartment] = useState(profile?.department || "");
+      const [level, setLevel] = useState(profile?.level || "");
+      const [phone, setPhone] = useState(profile?.phone || "");
+      const [saving, setSaving] = useState(false);
+      const [err, setErr] = useState("");
+
+      async function save() {
+        setSaving(true);
+        try {
+          await sbFetch(`/profiles?id=eq.${profile.id}`, {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ avatar_url: avatarUrl, university, department, level, phone }),
+          });
+          onSave({ ...profile, avatar_url: avatarUrl, university, department, level, phone });
+        } catch(e) { setErr("Failed to save. Try again."); }
+        setSaving(false);
+      }
+
+      return (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:16, overflowY:"auto" }}>
+          <div style={{ background:"#111827", border:"1px solid #2d3f55", borderRadius:20, padding:24, width:"100%", maxWidth:380 }}>
+            <h2 style={{ color:"#e2e8f0", fontWeight:800, fontSize:18, marginBottom:16, textAlign:"center" }}>✏️ Edit Profile</h2>
+            
+            {/* Avatar preview */}
+            <div style={{ textAlign:"center", marginBottom:16 }}>
+              <Avatar name={profile?.username} color={profile?.avatar_color} url={avatarUrl} size={80} />
+            </div>
+
+            <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>Profile Picture URL</label>
+            <input style={INP} placeholder="Paste image URL (e.g. from Google Photos)" value={avatarUrl} onChange={e=>setAvatarUrl(e.target.value)} />
+            <div style={{ color:"#475569", fontSize:11, marginTop:-8, marginBottom:10 }}>Tip: Upload to imgur.com and paste the link here</div>
+
+            <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>School / University</label>
+            <input style={INP} placeholder="University or school name" value={university} onChange={e=>setUniversity(e.target.value)} />
+
+            <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>Department / Course</label>
+            <input style={INP} placeholder="Department or course" value={department} onChange={e=>setDepartment(e.target.value)} />
+
+            <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>Level</label>
+            <select style={{ ...INP, appearance:"none" }} value={level} onChange={e=>setLevel(e.target.value)}>
+              <option value="">Select Level</option>
+              {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+
+            <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>WhatsApp Number</label>
+            <input style={INP} placeholder="e.g. 2348012345678" value={phone} onChange={e=>setPhone(e.target.value)} />
+
+            {err && <div style={{ color:"#f87171", fontSize:13, marginBottom:10 }}>{err}</div>}
+
+            <div style={{ display:"flex", gap:10 }}>
+              <button style={{ flex:1, background:"#1e2a3a", border:"none", borderRadius:10, padding:12, color:"#94a3b8", cursor:"pointer", fontSize:14 }} onClick={onClose}>Cancel</button>
+              <button style={{ flex:1, ...BTN, opacity: saving?0.6:1 }} onClick={save} disabled={saving}>{saving?"Saving...":"Save Changes"}</button>
+            </div>
           </div>
         </div>
       );
@@ -123,6 +187,7 @@
       const [level, setLevel] = useState("");
       const [phone, setPhone] = useState("");
       const [university, setUniversity] = useState("");
+      const [avatarUrl, setAvatarUrl] = useState("");
       const [authErr, setAuthErr] = useState("");
       const [loading, setLoading] = useState(false);
       const [session, setSession] = useState(null);
@@ -134,6 +199,7 @@
       const [sending, setSending] = useState(false);
       const [sidebarOpen, setSidebarOpen] = useState(false);
       const [viewProfile, setViewProfile] = useState(null);
+      const [showEdit, setShowEdit] = useState(false);
       const bottomRef = useRef(null);
       const pollRef = useRef(null);
 
@@ -152,7 +218,6 @@
           const data = await sbFetch(`/messages?room=eq.${activeRoom}&order=created_at.asc&limit=50`,
             { headers: { Authorization: `Bearer ${session.access_token}` } });
           setMessages(data);
-          // load profiles for all users in messages
           const ids = [...new Set(data.map(m => m.user_id))];
           if (ids.length) {
             const ps = await sbFetch(`/profiles?id=in.(${ids.join(',')})`,
@@ -165,8 +230,8 @@
       }
 
       async function handleSignup() {
-        if (!email || !password || !username || !studentId || !department || !level || !phone || !university)
-          return setAuthErr("Please fill in all fields.");
+        if (!email || !password || !username || !studentId || !department || !level || !phone)
+          return setAuthErr("Please fill in all required fields.");
         if (password.length < 6) return setAuthErr("Password must be at least 6 characters.");
         setLoading(true); setAuthErr("");
         try {
@@ -175,7 +240,9 @@
           if (!userId) throw new Error("Signup incomplete. Try logging in.");
           await sbFetch("/profiles", { method:"POST",
             body: JSON.stringify({ id: userId, username, avatar_color: randomColor(),
-              student_id: studentId, department, level, phone, university }) });
+              student_id: studentId, department, level, phone,
+              university: university || "Not specified",
+              avatar_url: avatarUrl || null }) });
           setAuthErr("✅ Account created! Please log in.");
           setScreen("login");
         } catch(e) { setAuthErr(e.message); }
@@ -251,19 +318,23 @@
             <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:20, padding:"36px 28px", width:"100%", maxWidth:400, textAlign:"center" }}>
               <div style={{ fontSize:44, marginBottom:10 }}>🎓</div>
               <h1 style={{ color:"#e2e8f0", fontWeight:800, fontSize:24, marginBottom:4 }}>CampusHub</h1>
-              <p style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>{isLogin ? "Welcome back 👋" : "Join your campus community"}</p>
-              {!isLogin && <input style={INP} placeholder="Full name" value={username} onChange={e=>setUsername(e.target.value)} />}
+              <p style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>{isLogin ? "Welcome back 👋" : "For every student — jambite to graduate 🎓"}</p>
+              {!isLogin && <>
+                <input style={INP} placeholder="Full name" value={username} onChange={e=>setUsername(e.target.value)} />
+              </>}
               <input style={INP} placeholder="Email address" value={email} type="email" onChange={e=>setEmail(e.target.value)} />
               <input style={INP} placeholder="Password (min 6 characters)" value={password} type="password" onChange={e=>setPassword(e.target.value)} />
               {!isLogin && <>
-                <input style={INP} placeholder="Student ID (e.g. STU/2024/001)" value={studentId} onChange={e=>setStudentId(e.target.value)} />
-                <input style={INP} placeholder="University name" value={university} onChange={e=>setUniversity(e.target.value)} />
+                <input style={INP} placeholder="Student / Jamb ID" value={studentId} onChange={e=>setStudentId(e.target.value)} />
+                <input style={INP} placeholder="School / University (optional)" value={university} onChange={e=>setUniversity(e.target.value)} />
                 <input style={INP} placeholder="Department / Course" value={department} onChange={e=>setDepartment(e.target.value)} />
                 <select style={{ ...INP, appearance:"none" }} value={level} onChange={e=>setLevel(e.target.value)}>
                   <option value="">Select Level</option>
                   {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
                 <input style={INP} placeholder="WhatsApp number (e.g. 2348012345678)" value={phone} onChange={e=>setPhone(e.target.value)} />
+                <input style={INP} placeholder="Profile picture URL (optional)" value={avatarUrl} onChange={e=>setAvatarUrl(e.target.value)} />
+                {avatarUrl && <img src={avatarUrl} style={{ width:60, height:60, borderRadius:"50%", objectFit:"cover", margin:"0 auto 10px", display:"block", border:"2px solid #6C63FF" }} onError={e=>e.target.style.display="none"} />}
               </>}
               {authErr && <div style={{ color: authErr.startsWith("✅") ? "#4ade80" : "#f87171", fontSize:13, marginBottom:10 }}>{authErr}</div>}
               <button style={{ ...BTN, opacity: loading ? 0.6 : 1 }} onClick={isLogin ? handleLogin : handleSignup} disabled={loading}>
@@ -272,102 +343,4 @@
               {isLogin && <button style={{ background:"none", border:"none", color:"#94a3b8", fontSize:13, cursor:"pointer", marginTop:10, display:"block", width:"100%", textAlign:"center" }}
                 onClick={()=>{ setScreen("forgot"); setAuthErr(""); }}>Forgot password?</button>}
               <button style={{ background:"none", border:"none", color:"#6C63FF", fontSize:13, cursor:"pointer", marginTop:8 }}
-                onClick={()=>{ setScreen(isLogin?"signup":"login"); setAuthErr(""); }}>
-                {isLogin ? "No account? Sign up" : "Have an account? Log in"}
-              </button>
-            </div>
-          </div>
-        );
-      }
-
-      const currentRoom = ROOMS.find(r => r.id === activeRoom);
-      return (
-        <div style={{ display:"flex", height:"100vh", background:"#0d1520", overflow:"hidden", position:"relative" }}>
-          {viewProfile && <ProfileCard p={viewProfile} onClose={()=>setViewProfile(null)} />}
-          {sidebarOpen && <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:10 }} onClick={()=>setSidebarOpen(false)} />}
-          
-          <aside style={{ width:240, background:"#111827", display:"flex", flexDirection:"column", borderRight:"1px solid #1e2d3d", position:"fixed", height:"100%", zIndex:20, transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)", transition:"transform 0.2s" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"16px 16px 12px", borderBottom:"1px solid #1e2d3d" }}>
-              <span style={{ fontSize:20 }}>🎓</span>
-              <span style={{ color:"#e2e8f0", fontWeight:800, fontSize:15 }}>CampusHub</span>
-            </div>
-            <div style={{ color:"#475569", fontSize:10, fontWeight:700, letterSpacing:1.2, padding:"14px 16px 6px" }}>ROOMS</div>
-            {ROOMS.map(room => (
-              <button key={room.id} style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 16px", border:"none", cursor:"pointer", fontSize:13, borderRadius:6, margin:"1px 0",
-                background: activeRoom===room.id ? "rgba(108,99,255,0.2)" : "transparent",
-                color: activeRoom===room.id ? "#a89eff" : "#94a3b8", fontWeight: activeRoom===room.id ? 700 : 400 }}
-                onClick={()=>{ setActiveRoom(room.id); setSidebarOpen(false); }}>
-                {room.emoji} {room.label}
-              </button>
-            ))}
-
-            {/* My Profile */}
-            <div style={{ marginTop:"auto", borderTop:"1px solid #1e2d3d" }}>
-              <button style={{ width:"100%", background:"none", border:"none", cursor:"pointer", padding:"12px 14px", textAlign:"left" }}
-                onClick={()=>{ setViewProfile(profile); setSidebarOpen(false); }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <Avatar name={profile?.username} color={profile?.avatar_color} size={38} />
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ color:"#e2e8f0", fontSize:13, fontWeight:700 }}>{profile?.username}</div>
-                    <div style={{ color:"#6C63FF", fontSize:11 }}>{profile?.level} · {profile?.department}</div>
-                    <div style={{ color:"#475569", fontSize:10, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{profile?.university}</div>
-                  </div>
-                  <button style={{ background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:16, padding:4 }} onClick={e=>{ e.stopPropagation(); logout(); }}>⏻</button>
-                </div>
-              </button>
-            </div>
-          </aside>
-
-          <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-            <div style={{ padding:"12px 16px", borderBottom:"1px solid #1e2d3d", background:"#111827", display:"flex", alignItems:"center", gap:12 }}>
-              <button style={{ background:"none", border:"none", color:"#94a3b8", fontSize:20, cursor:"pointer" }} onClick={()=>setSidebarOpen(!sidebarOpen)}>☰</button>
-              <div>
-                <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>{currentRoom?.emoji} {currentRoom?.label}</div>
-                <div style={{ color:"#475569", fontSize:11 }}>{messages.length} messages</div>
-              </div>
-            </div>
-
-            <div style={{ flex:1, overflowY:"auto", padding:16, display:"flex", flexDirection:"column", gap:16 }}>
-              {messages.length===0 && <div style={{ color:"#475569", textAlign:"center", marginTop:40 }}>No messages yet — say hello! 👋</div>}
-              {messages.map(msg => {
-                const isOwn = msg.user_id === session?.user?.id;
-                const p = profiles[msg.user_id];
-                return (
-                  <div key={msg.id} style={{ display:"flex", alignItems:"flex-start", gap:10, flexDirection: isOwn?"row-reverse":"row" }}>
-                    <button style={{ background:"none", border:"none", cursor:"pointer", padding:0 }}
-                      onClick={()=> p && setViewProfile(p)}>
-                      <Avatar name={msg.username} color={msg.avatar_color} size={38} />
-                    </button>
-                    <div style={{ maxWidth:"70%", display:"flex", flexDirection:"column", alignItems: isOwn?"flex-end":"flex-start" }}>
-     <div style={{ marginBottom:4, display:"flex", flexDirection:"column", alignItems: isOwn?"flex-end":"flex-start" }}>
-                        <span style={{ color: isOwn?"#a89eff":(msg.avatar_color||"#6C63FF"), fontWeight:700, fontSize:13 }}>{isOwn?"You":msg.username}</span>
-                        {p && !isOwn && <span style={{ color:"#475569", fontSize:11 }}>{p.department} · {p.level} · {p.university}</span>}
-                        <span style={{ color:"#475569", fontSize:11 }}>{timeStr(msg.created_at)}</span>
-                      </div>
-                      <div style={{ padding:"9px 13px", color:"#e2e8f0", fontSize:14, lineHeight:1.5, wordBreak:"break-word",
-                        background: isOwn?"#6C63FF":"#1e2a3a",
-                        borderRadius: isOwn?"18px 18px 4px 18px":"18px 18px 18px 4px" }}>{msg.content}</div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={bottomRef} />
-            </div>
-
-            <div style={{ padding:"12px 16px", borderTop:"1px solid #1e2d3d", background:"#111827", display:"flex", gap:8, alignItems:"center" }}>
-              <input style={{ flex:1, background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:12, padding:"10px 14px", color:"#e2e8f0", fontSize:14, outline:"none" }}
-                placeholder={`Message #${currentRoom?.label}...`} value={input} onChange={e=>setInput(e.target.value)}
-                onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendMessage(); } }} />
-              <button style={{ width:38, height:38, borderRadius:"50%", background:"#6C63FF", border:"none", color:"#fff", fontSize:18, cursor:"pointer", fontWeight:700, opacity: input.trim()&&!sending?1:0.4 }}
-                onClick={sendMessage} disabled={!input.trim()||sending}>{sending?"…":"↑"}</button>
-            </div>
-          </main>
-        </div>
-      );
-    }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-</body>
-</html>
+                
