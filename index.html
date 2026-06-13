@@ -857,3 +857,137 @@ function App() {
     catch(e) { setAuthErr(e.message); }
     setLoading(false);
   }
+async function sendMessage(imageUrl = null) {
+    if (!imageUrl && !input.trim()) return;
+    if (!session || !profile) return;
+    setSending(true);
+    try {
+      const body = {
+        user_id: session.user.id,
+        username: profile.username,
+        avatar_color: profile.avatar_color,
+        room: activeRoom,
+        content: imageUrl ? "" : input.trim(),
+        image_url: imageUrl || null,
+        reply_to_id: replyTo?.id || null,
+        reply_to_username: replyTo?.username || null,
+        reply_to_content: replyTo ? (replyTo.image_url ? "📷 Photo" : replyTo.content) : null,
+      };
+      await sbFetch("/messages", { method:"POST",
+        headers:{ Authorization:`Bearer ${session.access_token}` },
+        body: JSON.stringify(body) }, session.access_token);
+      setInput(""); setReplyTo(null);
+      await loadMessages();
+    } catch {}
+    setSending(false);
+  }
+
+  async function handleImageSend(e) {
+    const file = e.target.files[0]; if (!file) return;
+    setUploadingImg(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      await sendMessage(url);
+    } catch { alert("Image upload failed."); }
+    setUploadingImg(false);
+    e.target.value = "";
+  }
+
+  async function deleteMessage(msgId) {
+    try {
+      await sbFetch(`/messages?id=eq.${msgId}`, { method:"DELETE",
+        headers:{ Authorization:`Bearer ${session.access_token}` } }, session.access_token);
+      setMsgMenuId(null);
+      await loadMessages();
+    } catch { alert("Could not delete message."); }
+  }
+
+  function logout() {
+    setSession(null); setProfile(null); setMessages([]);
+    setScreen("login"); setEmail(""); setPassword("");
+    clearInterval(pollRef.current); clearInterval(presenceRef.current);
+  }
+
+  function switchRoom(roomId) {
+    setActiveRoom(roomId);
+    setDmView(null);
+    setSidebarOpen(false);
+    setUnread(u => ({ ...u, [roomId]: 0 }));
+    setReplyTo(null);
+  }
+
+  // ── DM: open or create conversation with a user ──
+  async function openDmWith(otherUserId) {
+    const conv = await getOrCreateConversation(session.user.id, otherUserId, session.access_token);
+    let otherProfile = profiles[otherUserId];
+    if (!otherProfile) {
+      const ps = await sbFetch(`/profiles?id=eq.${otherUserId}`,
+        { headers:{ Authorization:`Bearer ${session.access_token}` } }, session.access_token);
+      otherProfile = ps[0];
+      setProfiles(prev => ({ ...prev, [otherUserId]: otherProfile }));
+    }
+    setDmView({ conversation: conv, otherProfile });
+    setViewProfile(null);
+  }
+
+  // ── Auth screens ─────────────────────────────────────────────────────────
+  if (screen === "forgot") return (
+    <div style={{ minHeight:"100vh", background:"#0d1520", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:20, padding:"36px 28px", width:"100%", maxWidth:360, textAlign:"center" }}>
+        <div style={{ fontSize:44, marginBottom:10 }}>🔐</div>
+        <h1 style={{ color:"#e2e8f0", fontWeight:800, fontSize:22, marginBottom:4 }}>Forgot Password</h1>
+        <p style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>Enter your email to reset your password</p>
+        <input style={INP} placeholder="Email address" value={email} type="email" onChange={e=>setEmail(e.target.value)} />
+        {authErr && <div style={{ color:authErr.startsWith("✅")?"#4ade80":"#f87171", fontSize:13, marginBottom:10 }}>{authErr}</div>}
+        <button style={{ ...BTN, opacity:loading?0.6:1 }} onClick={handleForgotPassword} disabled={loading}>{loading?"Sending...":"Send Reset Link"}</button>
+        <button style={{ background:"none", border:"none", color:"#6C63FF", fontSize:13, cursor:"pointer", marginTop:14 }} onClick={()=>{ setScreen("login"); setAuthErr(""); }}>Back to Login</button>
+      </div>
+    </div>
+  );
+
+  if (screen !== "chat") {
+    const isLogin = screen === "login";
+    return (
+      <div style={{ minHeight:"100vh", background:"#0d1520", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+        <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:20, padding:"36px 28px", width:"100%", maxWidth:400, textAlign:"center" }}>
+          <div style={{ fontSize:44, marginBottom:10 }}>🎓</div>
+          <h1 style={{ color:"#e2e8f0", fontWeight:800, fontSize:24, marginBottom:4 }}>CampusHub</h1>
+          <p style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>{isLogin?"Welcome back 👋":"For every student — jambite to graduate 🎓"}</p>
+          {!isLogin && <>
+            <div style={{ textAlign:"center", marginBottom:16 }}>
+              <div style={{ position:"relative", display:"inline-block" }}>
+                <Avatar name={username||"?"} color="#6C63FF" url={avatarUrl} size={72} />
+                <button style={{ position:"absolute", bottom:0, right:0, width:26, height:26, borderRadius:"50%", background:"#6C63FF", border:"2px solid #111827", color:"#fff", fontSize:14, cursor:"pointer" }}
+                  onClick={()=>signupFileRef.current.click()} disabled={uploadingAvatar}>{uploadingAvatar?"⏳":"📷"}</button>
+              </div>
+              <div style={{ color:"#475569", fontSize:11, marginTop:6 }}>{uploadingAvatar?"Uploading...":"Tap 📷 to add profile photo"}</div>
+              <input ref={signupFileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleSignupPhoto} />
+            </div>
+            <input style={INP} placeholder="Full name" value={username} onChange={e=>setUsername(e.target.value)} />
+          </>}
+          <input style={INP} placeholder="Email address" value={email} type="email" onChange={e=>setEmail(e.target.value)} />
+          <input style={INP} placeholder="Password (min 6 characters)" value={password} type="password" onChange={e=>setPassword(e.target.value)} />
+          {!isLogin && <>
+            <input style={INP} placeholder="Student / Jamb ID" value={studentId} onChange={e=>setStudentId(e.target.value)} />
+            <input style={INP} placeholder="School / University (optional)" value={university} onChange={e=>setUniversity(e.target.value)} />
+            <input style={INP} placeholder="Department / Course" value={department} onChange={e=>setDepartment(e.target.value)} />
+            <select style={{ ...INP, appearance:"none" }} value={level} onChange={e=>setLevel(e.target.value)}>
+              <option value="">Select Level</option>
+              {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+            <input style={INP} placeholder="WhatsApp number (e.g. 2348012345678)" value={phone} onChange={e=>setPhone(e.target.value)} />
+          </>}
+          {authErr && <div style={{ color:authErr.startsWith("✅")?"#4ade80":"#f87171", fontSize:13, marginBottom:10 }}>{authErr}</div>}
+          <button style={{ ...BTN, opacity:loading?0.6:1 }} onClick={isLogin?handleLogin:handleSignup} disabled={loading}>
+            {loading?"Please wait...":isLogin?"Log in →":"Create Account →"}
+          </button>
+          {isLogin && <button style={{ background:"none", border:"none", color:"#94a3b8", fontSize:13, cursor:"pointer", marginTop:10, display:"block", width:"100%", textAlign:"center" }}
+            onClick={()=>{ setScreen("forgot"); setAuthErr(""); }}>Forgot password?</button>}
+          <button style={{ background:"none", border:"none", color:"#6C63FF", fontSize:13, cursor:"pointer", marginTop:8 }}
+            onClick={()=>{ setScreen(isLogin?"signup":"login"); setAuthErr(""); }}>
+            {isLogin?"No account? Sign up":"Have an account? Log in"}
+          </button>
+        </div>
+      </div>
+    );
+  }
