@@ -16,17 +16,35 @@
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: #0d1520; }
     ::-webkit-scrollbar-thumb { background: #2d3f55; border-radius: 2px; }
+
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.4)} 100%{transform:scale(1)} }
+
+    .msg-bubble { animation: fadeIn 0.2s ease; }
+    .reaction-btn:hover { transform: scale(1.2); }
+    .reaction-btn { transition: transform 0.15s; }
+    .online-dot { animation: pulse 2s infinite; }
+    .reaction-pop { animation: pop 0.25s ease; }
+
+    .img-msg { max-width:220px; border-radius:12px; cursor:pointer; display:block; margin-top:6px; }
+    .lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:999; display:flex; align-items:center; justify-content:center; }
+    .lightbox img { max-width:95vw; max-height:90vh; border-radius:12px; }
   </style>
 </head>
 <body>
   <div id="root"></div>
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect, useRef, useCallback } = React;
 
     const SUPABASE_URL = "https://vwrqdstapeguqjvlwrps.supabase.co";
     const SUPABASE_KEY = "sb_publishable_Irsq6di1d317hycpvsD__A_YTQD60ra";
     const CLOUDINARY_CLOUD = "dybylicd7";
     const CLOUDINARY_PRESET = "campushub";
+
+    const EMOJI_REACTIONS = ["👍","❤️","😂","😮","🔥","🎉"];
+
+    // ─── API helpers ────────────────────────────────────────────────────────────
 
     async function uploadToCloudinary(file) {
       const formData = new FormData();
@@ -40,11 +58,17 @@
       return data.secure_url;
     }
 
-    async function sbFetch(path, options = {}) {
+    async function sbFetch(path, options = {}, token) {
+      const authKey = token || SUPABASE_KEY;
       const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
         ...options,
-        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
-          "Content-Type": "application/json", Prefer: "return=representation", ...(options.headers || {}) },
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${authKey}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+          ...(options.headers || {})
+        },
       });
       const text = await res.text();
       return text ? JSON.parse(text) : [];
@@ -78,30 +102,44 @@
       return await res.json();
     }
 
+    // ─── Constants ──────────────────────────────────────────────────────────────
+
     const ROOMS = [
-      { id: "general", label: "general", emoji: "💬" },
-      { id: "study", label: "study-group", emoji: "📚" },
+      { id: "general",       label: "general",       emoji: "💬" },
+      { id: "study",         label: "study-group",   emoji: "📚" },
       { id: "announcements", label: "announcements", emoji: "📢" },
-      { id: "off-topic", label: "off-topic", emoji: "🎮" },
-      { id: "assignments", label: "assignments", emoji: "📝" },
+      { id: "off-topic",     label: "off-topic",     emoji: "🎮" },
+      { id: "assignments",   label: "assignments",   emoji: "📝" },
     ];
 
     const LEVELS = ["Jambite (Pre-university)", "100L", "200L", "300L", "400L", "500L", "Graduate"];
     const COLORS = ["#6C63FF","#FF6584","#43B89C","#F4A261","#4FC3F7","#FF8A65","#A29BFE"];
     const randomColor = () => COLORS[Math.floor(Math.random() * COLORS.length)];
     const timeStr = ts => new Date(ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+    const dateStr = ts => {
+      const d = new Date(ts), now = new Date();
+      if (d.toDateString() === now.toDateString()) return "Today";
+      const yest = new Date(now); yest.setDate(yest.getDate()-1);
+      if (d.toDateString() === yest.toDateString()) return "Yesterday";
+      return d.toLocaleDateString([], { month:"short", day:"numeric" });
+    };
 
     const INP = { width:"100%", background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:10, padding:"11px 14px", color:"#e2e8f0", fontSize:14, outline:"none", marginBottom:10, display:"block" };
     const BTN = { width:"100%", background:"#6C63FF", border:"none", borderRadius:10, padding:12, color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer" };
 
-    function Avatar({ name, color, url, size = 36 }) {
+    // ─── Small components ────────────────────────────────────────────────────────
+
+    function Avatar({ name, color, url, size = 36, online = false }) {
       const [imgErr, setImgErr] = useState(false);
-      if (url && !imgErr) return <img src={url} alt={name} style={{ width:size, height:size, borderRadius:"50%", objectFit:"cover", flexShrink:0, border:"2px solid #2d3f55" }} onError={()=>setImgErr(true)} />;
       return (
-        <div style={{ width:size, height:size, borderRadius:"50%", background: color||"#6C63FF",
-          display:"flex", alignItems:"center", justifyContent:"center", color:"#fff",
-          fontWeight:700, fontSize: size * 0.33, flexShrink:0 }}>
-          {name?.slice(0,2).toUpperCase()}
+        <div style={{ position:"relative", flexShrink:0 }}>
+          {url && !imgErr
+            ? <img src={url} alt={name} style={{ width:size, height:size, borderRadius:"50%", objectFit:"cover", border:"2px solid #2d3f55", display:"block" }} onError={()=>setImgErr(true)} />
+            : <div style={{ width:size, height:size, borderRadius:"50%", background:color||"#6C63FF", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:size*0.33 }}>
+                {name?.slice(0,2).toUpperCase()}
+              </div>
+          }
+          {online && <span className="online-dot" style={{ position:"absolute", bottom:1, right:1, width:9, height:9, borderRadius:"50%", background:"#22c55e", border:"2px solid #111827" }} />}
         </div>
       );
     }
@@ -110,48 +148,37 @@
       const [uploading, setUploading] = useState(false);
       const [preview, setPreview] = useState(currentUrl || "");
       const fileRef = useRef();
-
       async function handleFile(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+        const file = e.target.files[0]; if (!file) return;
         setUploading(true);
-        try {
-          const url = await uploadToCloudinary(file);
-          setPreview(url);
-          onUpload(url);
-        } catch(err) {
-          alert("Upload failed. Try again.");
-        }
+        try { const url = await uploadToCloudinary(file); setPreview(url); onUpload(url); }
+        catch { alert("Upload failed. Try again."); }
         setUploading(false);
       }
-
       return (
         <div style={{ textAlign:"center", marginBottom:16 }}>
           <div style={{ position:"relative", display:"inline-block" }}>
             <Avatar name={name} color={currentColor} url={preview} size={80} />
             <button style={{ position:"absolute", bottom:0, right:0, width:26, height:26, borderRadius:"50%", background:"#6C63FF", border:"2px solid #111827", color:"#fff", fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
-              onClick={()=>fileRef.current.click()} disabled={uploading}>
-              {uploading ? "⏳" : "📷"}
-            </button>
+              onClick={()=>fileRef.current.click()} disabled={uploading}>{uploading?"⏳":"📷"}</button>
           </div>
           <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleFile} />
-          <div style={{ color:"#475569", fontSize:11, marginTop:6 }}>
-            {uploading ? "Uploading..." : "Tap 📷 to change photo"}
-          </div>
+          <div style={{ color:"#475569", fontSize:11, marginTop:6 }}>{uploading?"Uploading...":"Tap 📷 to change photo"}</div>
         </div>
       );
     }
 
-    function ProfileCard({ p, onClose, isOwn, onEdit }) {
+    function ProfileCard({ p, onClose, isOwn, onEdit, online }) {
       if (!p) return null;
       const wa = p.phone ? `https://wa.me/${p.phone.replace(/[^0-9]/g,'')}` : null;
       return (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
-          onClick={onClose}>
-          <div style={{ background:"#111827", border:"1px solid #2d3f55", borderRadius:20, padding:24, width:"100%", maxWidth:320, textAlign:"center" }}
-            onClick={e=>e.stopPropagation()}>
-            <Avatar name={p.username} color={p.avatar_color} url={p.avatar_url} size={80} />
-            <h2 style={{ color:"#e2e8f0", fontWeight:800, fontSize:20, marginTop:12 }}>{p.username}</h2>
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={onClose}>
+          <div style={{ background:"#111827", border:"1px solid #2d3f55", borderRadius:20, padding:24, width:"100%", maxWidth:320, textAlign:"center" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"center", marginBottom:12 }}>
+              <Avatar name={p.username} color={p.avatar_color} url={p.avatar_url} size={80} online={online} />
+            </div>
+            <h2 style={{ color:"#e2e8f0", fontWeight:800, fontSize:20 }}>{p.username}</h2>
+            {online && <div style={{ color:"#22c55e", fontSize:12, marginTop:4 }}>● Online</div>}
             <div style={{ color:"#a89eff", fontSize:13, marginTop:4 }}>{p.student_id}</div>
             <div style={{ marginTop:16, display:"flex", flexDirection:"column", gap:8 }}>
               {p.university && p.university !== "Not specified" && <div style={{ background:"#1e2a3a", borderRadius:10, padding:"8px 14px", color:"#94a3b8", fontSize:13 }}>🏫 {p.university}</div>}
@@ -178,13 +205,10 @@
       async function save() {
         setSaving(true);
         try {
-          await sbFetch(`/profiles?id=eq.${profile.id}`, {
-            method: "PATCH",
-            headers: { Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify({ avatar_url: avatarUrl, university, department, level, phone }),
-          });
-          onSave({ ...profile, avatar_url: avatarUrl, university, department, level, phone });
-        } catch(e) { setErr("Failed to save. Try again."); }
+          await sbFetch(`/profiles?id=eq.${profile.id}`, { method:"PATCH", headers:{ Authorization:`Bearer ${session.access_token}` },
+            body: JSON.stringify({ avatar_url:avatarUrl, university, department, level, phone }) }, session.access_token);
+          onSave({ ...profile, avatar_url:avatarUrl, university, department, level, phone });
+        } catch { setErr("Failed to save. Try again."); }
         setSaving(false);
       }
 
@@ -192,36 +216,128 @@
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:16, overflowY:"auto" }}>
           <div style={{ background:"#111827", border:"1px solid #2d3f55", borderRadius:20, padding:24, width:"100%", maxWidth:380 }}>
             <h2 style={{ color:"#e2e8f0", fontWeight:800, fontSize:18, marginBottom:16, textAlign:"center" }}>✏️ Edit Profile</h2>
-            
             <PhotoUploader currentUrl={avatarUrl} currentColor={profile?.avatar_color} name={profile?.username} onUpload={url=>setAvatarUrl(url)} />
-
             <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>School / University</label>
             <input style={INP} placeholder="University or school name" value={university} onChange={e=>setUniversity(e.target.value)} />
-
             <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>Department / Course</label>
             <input style={INP} placeholder="Department or course" value={department} onChange={e=>setDepartment(e.target.value)} />
-
             <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>Level</label>
             <select style={{ ...INP, appearance:"none" }} value={level} onChange={e=>setLevel(e.target.value)}>
               <option value="">Select Level</option>
               {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
-
             <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>WhatsApp Number</label>
             <input style={INP} placeholder="e.g. 2348012345678" value={phone} onChange={e=>setPhone(e.target.value)} />
-
             {err && <div style={{ color:"#f87171", fontSize:13, marginBottom:10 }}>{err}</div>}
-
             <div style={{ display:"flex", gap:10 }}>
               <button style={{ flex:1, background:"#1e2a3a", border:"none", borderRadius:10, padding:12, color:"#94a3b8", cursor:"pointer", fontSize:14 }} onClick={onClose}>Cancel</button>
-              <button style={{ flex:1, ...BTN, opacity: saving?0.6:1 }} onClick={save} disabled={saving}>{saving?"Saving...":"Save Changes"}</button>
+              <button style={{ flex:1, ...BTN, opacity:saving?0.6:1 }} onClick={save} disabled={saving}>{saving?"Saving...":"Save Changes"}</button>
             </div>
           </div>
         </div>
       );
     }
 
+    // ─── NEW: Lightbox ───────────────────────────────────────────────────────────
+
+    function Lightbox({ url, onClose }) {
+      useEffect(() => {
+        const fn = e => { if (e.key==="Escape") onClose(); };
+        window.addEventListener("keydown", fn);
+        return () => window.removeEventListener("keydown", fn);
+      }, []);
+      return (
+        <div className="lightbox" onClick={onClose}>
+          <img src={url} onClick={e=>e.stopPropagation()} alt="full" />
+        </div>
+      );
+    }
+
+    // ─── NEW: ReactionBar ────────────────────────────────────────────────────────
+
+    function ReactionBar({ msgId, reactions, userId, onReact }) {
+      const [open, setOpen] = useState(false);
+      const grouped = {};
+      (reactions||[]).forEach(r => { grouped[r.emoji] = grouped[r.emoji]||[]; grouped[r.emoji].push(r.user_id); });
+      return (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:4, alignItems:"center" }}>
+          {Object.entries(grouped).map(([emoji, users]) => {
+            const mine = users.includes(userId);
+            return (
+              <button key={emoji} className="reaction-btn" onClick={()=>onReact(msgId, emoji)}
+                style={{ background: mine?"rgba(108,99,255,0.25)":"#1e2a3a", border: mine?"1px solid #6C63FF":"1px solid #2d3f55",
+                  borderRadius:20, padding:"2px 8px", fontSize:13, cursor:"pointer", color:"#e2e8f0", display:"flex", alignItems:"center", gap:4 }}>
+                {emoji} <span style={{ fontSize:11, color:"#94a3b8" }}>{users.length}</span>
+              </button>
+            );
+          })}
+          <button className="reaction-btn" onClick={()=>setOpen(!open)}
+            style={{ background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:20, padding:"2px 8px", fontSize:13, cursor:"pointer", color:"#64748b" }}>
+            {open?"✕":"＋"}
+          </button>
+          {open && (
+            <div style={{ display:"flex", gap:4, background:"#111827", border:"1px solid #2d3f55", borderRadius:20, padding:"4px 8px", flexWrap:"wrap" }}>
+              {EMOJI_REACTIONS.map(e => (
+                <button key={e} className="reaction-btn" onClick={()=>{ onReact(msgId, e); setOpen(false); }}
+                  style={{ background:"none", border:"none", fontSize:18, cursor:"pointer" }}>{e}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ─── NEW: ReplyPreview ───────────────────────────────────────────────────────
+
+    function ReplyPreview({ msg, onCancel }) {
+      if (!msg) return null;
+      return (
+        <div style={{ background:"#1e2a3a", borderLeft:"3px solid #6C63FF", borderRadius:"0 8px 8px 0", padding:"6px 10px", marginBottom:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <div style={{ color:"#a89eff", fontSize:11, fontWeight:700 }}>↩ Replying to {msg.username}</div>
+            <div style={{ color:"#64748b", fontSize:12, marginTop:2, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis", maxWidth:240 }}>
+              {msg.image_url ? "📷 Photo" : msg.content}
+            </div>
+          </div>
+          <button onClick={onCancel} style={{ background:"none", border:"none", color:"#64748b", fontSize:18, cursor:"pointer", paddingLeft:8 }}>✕</button>
+        </div>
+      );
+    }
+
+    // ─── NEW: DateDivider ─────────────────────────────────────────────────────────
+
+    function DateDivider({ label }) {
+      return (
+        <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0" }}>
+          <div style={{ flex:1, height:1, background:"#1e2d3d" }} />
+          <span style={{ color:"#475569", fontSize:11, fontWeight:600, whiteSpace:"nowrap" }}>{label}</span>
+          <div style={{ flex:1, height:1, background:"#1e2d3d" }} />
+        </div>
+      );
+    }
+
+    // ─── NEW: TypingIndicator ────────────────────────────────────────────────────
+
+    function TypingIndicator({ typers }) {
+      if (!typers || typers.length === 0) return null;
+      const names = typers.slice(0,2).join(", ");
+      const extra = typers.length > 2 ? ` +${typers.length-2}` : "";
+      return (
+        <div style={{ color:"#64748b", fontSize:12, padding:"0 16px 6px", display:"flex", alignItems:"center", gap:6 }}>
+          <span style={{ display:"inline-flex", gap:3 }}>
+            {[0,1,2].map(i=>(
+              <span key={i} style={{ width:5, height:5, borderRadius:"50%", background:"#475569", display:"inline-block", animation:`pulse ${0.8+i*0.2}s infinite` }} />
+            ))}
+          </span>
+          <span>{names}{extra} typing…</span>
+        </div>
+      );
+    }
+
+    // ─── Main App ────────────────────────────────────────────────────────────────
+
     function App() {
+      // Auth state
       const [screen, setScreen] = useState("login");
       const [email, setEmail] = useState("");
       const [password, setPassword] = useState("");
@@ -235,8 +351,12 @@
       const [uploadingAvatar, setUploadingAvatar] = useState(false);
       const [authErr, setAuthErr] = useState("");
       const [loading, setLoading] = useState(false);
+
+      // Session state
       const [session, setSession] = useState(null);
       const [profile, setProfile] = useState(null);
+
+      // Chat state
       const [activeRoom, setActiveRoom] = useState("general");
       const [messages, setMessages] = useState([]);
       const [profiles, setProfiles] = useState({});
@@ -244,142 +364,4 @@
       const [sending, setSending] = useState(false);
       const [sidebarOpen, setSidebarOpen] = useState(false);
       const [viewProfile, setViewProfile] = useState(null);
-      const [showEdit, setShowEdit] = useState(false);
-      const bottomRef = useRef(null);
-      const pollRef = useRef(null);
-      const signupFileRef = useRef();
-
-      useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
-
-      useEffect(() => {
-        if (!session) return;
-        loadMessages();
-        clearInterval(pollRef.current);
-        pollRef.current = setInterval(loadMessages, 3000);
-        return () => clearInterval(pollRef.current);
-      }, [activeRoom, session]);
-
-      async function loadMessages() {
-        try {
-          const data = await sbFetch(`/messages?room=eq.${activeRoom}&order=created_at.asc&limit=50`,
-            { headers: { Authorization: `Bearer ${session.access_token}` } });
-          setMessages(data);
-          const ids = [...new Set(data.map(m => m.user_id))];
-          if (ids.length) {
-            const ps = await sbFetch(`/profiles?id=in.(${ids.join(',')})`,
-              { headers: { Authorization: `Bearer ${session.access_token}` } });
-            const map = {};
-            ps.forEach(p => map[p.id] = p);
-            setProfiles(map);
-          }
-        } catch(e) {}
-      }
-
-      async function handleSignupPhoto(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        setUploadingAvatar(true);
-        try {
-          const url = await uploadToCloudinary(file);
-          setAvatarUrl(url);
-        } catch(err) { alert("Photo upload failed. Try again."); }
-        setUploadingAvatar(false);
-      }
-
-      async function handleSignup() {
-        if (!email || !password || !username || !studentId || !department || !level || !phone)
-          return setAuthErr("Please fill in all required fields.");
-        if (password.length < 6) return setAuthErr("Password must be at least 6 characters.");
-        setLoading(true); setAuthErr("");
-        try {
-          const data = await signUp(email, password);
-          const userId = data.user?.id;
-          if (!userId) throw new Error("Signup incomplete. Try logging in.");
-          await sbFetch("/profiles", { method:"POST",
-            body: JSON.stringify({ id: userId, username, avatar_color: randomColor(),
-              student_id: studentId, department, level, phone,
-              university: university || "Not specified",
-              avatar_url: avatarUrl || null }) });
-          setAuthErr("✅ Account created! Please log in.");
-          setScreen("login");
-        } catch(e) { setAuthErr(e.message); }
-        setLoading(false);
-      }
-
-      async function handleLogin() {
-        if (!email || !password) return setAuthErr("Enter email and password.");
-        setLoading(true); setAuthErr("");
-        try {
-          const data = await signIn(email, password);
-          const ps = await sbFetch(`/profiles?id=eq.${data.user?.id}`,
-            { headers: { Authorization: `Bearer ${data.access_token}` } });
-          if (!ps.length) throw new Error("Profile not found. Please sign up first.");
-          setSession(data); setProfile(ps[0]); setScreen("chat");
-        } catch(e) { setAuthErr(e.message); }
-        setLoading(false);
-      }
-
-      async function handleForgotPassword() {
-        if (!email) return setAuthErr("Enter your email first.");
-        setLoading(true); setAuthErr("");
-        try {
-          await resetPassword(email);
-          setAuthErr("✅ Password reset email sent!");
-        } catch(e) { setAuthErr(e.message); }
-        setLoading(false);
-      }
-
-      async function sendMessage() {
-        if (!input.trim() || !session || !profile) return;
-        setSending(true);
-        try {
-          await sbFetch("/messages", { method:"POST",
-            headers: { Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify({ user_id: session.user.id, username: profile.username,
-              avatar_color: profile.avatar_color, room: activeRoom, content: input.trim() }) });
-          setInput(""); await loadMessages();
-        } catch(e) {}
-        setSending(false);
-      }
-
-      function logout() {
-        setSession(null); setProfile(null); setMessages([]);
-        setScreen("login"); setEmail(""); setPassword("");
-        clearInterval(pollRef.current);
-      }
-
-      if (screen === "forgot") {
-        return (
-          <div style={{ minHeight:"100vh", background:"#0d1520", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-            <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:20, padding:"36px 28px", width:"100%", maxWidth:360, textAlign:"center" }}>
-              <div style={{ fontSize:44, marginBottom:10 }}>🔐</div>
-              <h1 style={{ color:"#e2e8f0", fontWeight:800, fontSize:22, marginBottom:4 }}>Forgot Password</h1>
-              <p style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>Enter your email to reset your password</p>
-              <input style={INP} placeholder="Email address" value={email} type="email" onChange={e=>setEmail(e.target.value)} />
-              {authErr && <div style={{ color: authErr.startsWith("✅") ? "#4ade80" : "#f87171", fontSize:13, marginBottom:10 }}>{authErr}</div>}
-              <button style={{ ...BTN, opacity: loading ? 0.6 : 1 }} onClick={handleForgotPassword} disabled={loading}>
-                {loading ? "Sending..." : "Send Reset Link"}
-              </button>
-              <button style={{ background:"none", border:"none", color:"#6C63FF", fontSize:13, cursor:"pointer", marginTop:14 }} onClick={()=>{ setScreen("login"); setAuthErr(""); }}>
-                Back to Login
-              </button>
-            </div>
-          </div>
-        );
-      }
-
-      if (screen !== "chat") {
-        const isLogin = screen === "login";
-        return (
-          <div style={{ minHeight:"100vh", background:"#0d1520", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-            <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:20, padding:"36px 28px", width:"100%", maxWidth:400, textAlign:"center" }}>
-              <div style={{ fontSize:44, marginBottom:10 }}>🎓</div>
-              <h1 style={{ color:"#e2e8f0", fontWeight:800, fontSize:24, marginBottom:4 }}>CampusHub</h1>
-              <p style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>{isLogin ? "Welcome back 👋" : "For every student — jambite to graduate 🎓"}</p>
-              
-              {!isLogin && <>
-                {/* Photo upload during signup */}
-                <div style={{ textAlign:"center", marginBottom:16 }}>
-                  <div style={{ position:"relative", display:"inline-block" }}>
-                    <Avatar name={username||"?"} color="#6C63FF" url={avatarUrl} size={72} />
-                    
+      
