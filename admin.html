@@ -25,7 +25,7 @@ tr:hover { background: rgba(255,255,255,0.02); }
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect } = React;
 
 const SUPABASE_URL = "https://vwrqdstapeguqjvlwrps.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Irsq6di1d317hycpvsD__A_YTQD60ra";
@@ -60,10 +60,8 @@ const INP = { width:"100%", background:"#1e2a3a", border:"1px solid #2d3f55", bo
 const BTN = { background:"#6C63FF", border:"none", borderRadius:8, padding:"8px 14px", color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer" };
 const BTN_DANGER = { ...BTN, background:"#dc2626" };
 const BTN_GHOST = { ...BTN, background:"#1e2a3a", color:"#94a3b8" };
-
 const ROOMS = ["general","study","announcements","off-topic","assignments"];
 
-// ─── Login Screen ───────────────────────────────────────────
 function AdminLogin({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -77,9 +75,8 @@ function AdminLogin({ onLogin }) {
       const ps = await sbFetch(`/profiles?id=eq.${data.user?.id}`,
         { headers:{ Authorization:`Bearer ${data.access_token}` } }, data.access_token);
       if (!ps.length) throw new Error("Profile not found.");
-      if (ps[0].role !== "admin" && ps[0].role !== "moderator") {
+      if (ps[0].role !== "admin" && ps[0].role !== "moderator")
         throw new Error("Access denied. Admin/moderator only.");
-      }
       onLogin(data, ps[0]);
     } catch(e) { setErr(e.message); }
     setLoading(false);
@@ -92,18 +89,14 @@ function AdminLogin({ onLogin }) {
         <h1 style={{ color:"#e2e8f0", fontWeight:800, fontSize:22, marginBottom:4 }}>CampusHub Admin</h1>
         <p style={{ color:"#64748b", fontSize:13, marginBottom:24 }}>Restricted access — admins & moderators only</p>
         <input style={INP} placeholder="Email" value={email} type="email" onChange={e=>setEmail(e.target.value)} />
-        <input style={INP} placeholder="Password" value={password} type="password" onChange={e=>setPassword(e.target.value)}
-          onKeyDown={e=>{ if(e.key==="Enter") handleLogin(); }} />
+        <input style={INP} placeholder="Password" value={password} type="password" onChange={e=>setPassword(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") handleLogin(); }} />
         {err && <div style={{ color:"#f87171", fontSize:13, marginBottom:10 }}>{err}</div>}
-        <button style={{ ...BTN, width:"100%", padding:12, opacity:loading?0.6:1 }} onClick={handleLogin} disabled={loading}>
-          {loading?"Checking...":"Log in →"}
-        </button>
+        <button style={{ ...BTN, width:"100%", padding:12, opacity:loading?0.6:1 }} onClick={handleLogin} disabled={loading}>{loading?"Checking...":"Log in →"}</button>
       </div>
     </div>
   );
 }
 
-// ─── Stat Card ───────────────────────────────────────────────
 function StatCard({ label, value, color }) {
   return (
     <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:14, padding:16, flex:1, minWidth:120 }}>
@@ -113,7 +106,6 @@ function StatCard({ label, value, color }) {
   );
 }
 
-// ─── Overview Tab ────────────────────────────────────────────
 function OverviewTab({ token }) {
   const [stats, setStats] = useState(null);
   const [roomCounts, setRoomCounts] = useState({});
@@ -130,19 +122,11 @@ function OverviewTab({ token }) {
         sbFetch(`/presence?select=id&last_seen=gte.${new Date(Date.now()-90000).toISOString()}`, { headers:{ Authorization:`Bearer ${token}` } }, token),
         sbFetch(`/reports?select=id&status=eq.pending`, { headers:{ Authorization:`Bearer ${token}` } }, token),
       ]);
-      setStats({
-        users: profiles.length,
-        messages: messages.length,
-        dms: dms.length,
-        banned: banned.length,
-        online: online.length,
-        pendingReports: reports.length,
-      });
-
+      setStats({ users:profiles.length, messages:messages.length, dms:dms.length, banned:banned.length, online:online.length, pendingReports:reports.length });
       const counts = {};
       for (const room of ROOMS) {
-        const data = await sbFetch(`/messages?select=id&room=eq.${room}`, { headers:{ Authorization:`Bearer ${token}` } }, token);
-        counts[room] = data.length;
+        const d = await sbFetch(`/messages?select=id&room=eq.${room}`, { headers:{ Authorization:`Bearer ${token}` } }, token);
+        counts[room] = d.length;
       }
       setRoomCounts(counts);
     } catch {}
@@ -160,14 +144,13 @@ function OverviewTab({ token }) {
         <StatCard label="Banned Users" value={stats.banned} color="#f87171" />
         <StatCard label="Pending Reports" value={stats.pendingReports} color="#f59e0b" />
       </div>
-
       <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:14, padding:16 }}>
         <h3 style={{ color:"#e2e8f0", fontSize:14, marginBottom:12 }}>📊 Messages per Room</h3>
         {ROOMS.map(room => (
           <div key={room} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
             <div style={{ color:"#94a3b8", fontSize:13, width:120 }}>{room}</div>
             <div style={{ flex:1, background:"#1e2a3a", borderRadius:6, height:8, overflow:"hidden" }}>
-              <div style={{ background:"#6C63FF", height:"100%", width: stats.messages ? `${Math.min(100, (roomCounts[room]||0)/Math.max(...Object.values(roomCounts),1)*100)}%` : "0%" }} />
+              <div style={{ background:"#6C63FF", height:"100%", width:`${Math.min(100,(roomCounts[room]||0)/Math.max(...Object.values(roomCounts),1)*100)}%` }} />
             </div>
             <div style={{ color:"#e2e8f0", fontSize:13, width:40, textAlign:"right" }}>{roomCounts[room]||0}</div>
           </div>
@@ -177,11 +160,33 @@ function OverviewTab({ token }) {
   );
 }
 
-// ─── Users Tab ───────────────────────────────────────────────
+function BanModal({ user, onClose, onConfirm }) {
+  const [reason, setReason] = useState("");
+  const [days, setDays] = useState("7");
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={onClose}>
+      <div style={{ background:"#111827", border:"1px solid #2d3f55", borderRadius:16, padding:24, width:"100%", maxWidth:360 }} onClick={e=>e.stopPropagation()}>
+        <h3 style={{ color:"#e2e8f0", fontSize:16, marginBottom:12 }}>🚫 Ban {user.username}</h3>
+        <textarea style={{ ...INP, minHeight:70, resize:"vertical" }} placeholder="Reason for ban..." value={reason} onChange={e=>setReason(e.target.value)} />
+        <select style={{ ...INP, appearance:"none" }} value={days} onChange={e=>setDays(e.target.value)}>
+          <option value="1">1 day</option>
+          <option value="7">7 days</option>
+          <option value="30">30 days</option>
+          <option value="permanent">Permanent</option>
+        </select>
+        <div style={{ display:"flex", gap:10, marginTop:10 }}>
+          <button style={{ ...BTN_GHOST, flex:1 }} onClick={onClose}>Cancel</button>
+          <button style={{ ...BTN_DANGER, flex:1 }} onClick={()=>onConfirm(user, reason||"No reason", days==="permanent"?"permanent":parseInt(days))} disabled={!reason.trim()}>Confirm Ban</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function UsersTab({ token, myId, onAction }) {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
-  const [banModal, setBanModal] = useState(null); // user object
+  const [banModal, setBanModal] = useState(null);
 
   useEffect(() => { load(); }, []);
 
@@ -193,128 +198,63 @@ function UsersTab({ token, myId, onAction }) {
   }
 
   async function banUser(user, reason, days) {
-    const banned_until = days === "permanent" ? null : new Date(Date.now() + days*86400000).toISOString();
+    const banned_until = days==="permanent" ? null : new Date(Date.now()+days*86400000).toISOString();
     try {
-      await sbFetch(`/profiles?id=eq.${user.id}`, {
-        method:"PATCH", headers:{ Authorization:`Bearer ${token}` },
-        body: JSON.stringify({ is_banned:true, banned_until, ban_reason: reason })
-      }, token);
-      await sbFetch("/moderation_logs", {
-        method:"POST", headers:{ Authorization:`Bearer ${token}` },
-        body: JSON.stringify({ moderator_id: myId, target_user_id: user.id, action:"ban", reason })
-      }, token);
-      setBanModal(null);
-      load();
-      onAction();
-    } catch { alert("Failed to ban user."); }
+      await sbFetch(`/profiles?id=eq.${user.id}`, { method:"PATCH", headers:{ Authorization:`Bearer ${token}` }, body:JSON.stringify({ is_banned:true, banned_until, ban_reason:reason }) }, token);
+      await sbFetch("/moderation_logs", { method:"POST", headers:{ Authorization:`Bearer ${token}` }, body:JSON.stringify({ moderator_id:myId, target_user_id:user.id, action:"ban", reason }) }, token);
+      setBanModal(null); load(); onAction();
+    } catch { alert("Failed to ban."); }
   }
 
   async function unbanUser(user) {
     try {
-      await sbFetch(`/profiles?id=eq.${user.id}`, {
-        method:"PATCH", headers:{ Authorization:`Bearer ${token}` },
-        body: JSON.stringify({ is_banned:false, banned_until:null, ban_reason:null })
-      }, token);
-      await sbFetch("/moderation_logs", {
-        method:"POST", headers:{ Authorization:`Bearer ${token}` },
-        body: JSON.stringify({ moderator_id: myId, target_user_id: user.id, action:"unban", reason:"Manual unban" })
-      }, token);
-      load();
-      onAction();
-    } catch { alert("Failed to unban user."); }
+      await sbFetch(`/profiles?id=eq.${user.id}`, { method:"PATCH", headers:{ Authorization:`Bearer ${token}` }, body:JSON.stringify({ is_banned:false, banned_until:null, ban_reason:null }) }, token);
+      await sbFetch("/moderation_logs", { method:"POST", headers:{ Authorization:`Bearer ${token}` }, body:JSON.stringify({ moderator_id:myId, target_user_id:user.id, action:"unban", reason:"Manual unban" }) }, token);
+      load(); onAction();
+    } catch { alert("Failed to unban."); }
   }
 
   async function changeRole(user, role) {
     try {
-      await sbFetch(`/profiles?id=eq.${user.id}`, {
-        method:"PATCH", headers:{ Authorization:`Bearer ${token}` },
-        body: JSON.stringify({ role })
-      }, token);
-      await sbFetch("/moderation_logs", {
-        method:"POST", headers:{ Authorization:`Bearer ${token}` },
-        body: JSON.stringify({ moderator_id: myId, target_user_id: user.id, action:`role_change_${role}`, reason:"" })
-      }, token);
+      await sbFetch(`/profiles?id=eq.${user.id}`, { method:"PATCH", headers:{ Authorization:`Bearer ${token}` }, body:JSON.stringify({ role }) }, token);
+      await sbFetch("/moderation_logs", { method:"POST", headers:{ Authorization:`Bearer ${token}` }, body:JSON.stringify({ moderator_id:myId, target_user_id:user.id, action:`role_change_${role}`, reason:"" }) }, token);
       load();
     } catch { alert("Failed to update role."); }
   }
 
-  const filtered = users.filter(u =>
-    u.username?.toLowerCase().includes(search.toLowerCase()) ||
-    u.student_id?.toLowerCase().includes(search.toLowerCase()) ||
-    u.department?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = users.filter(u => u.username?.toLowerCase().includes(search.toLowerCase()) || u.student_id?.toLowerCase().includes(search.toLowerCase()) || u.department?.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div>
-      <input style={{ ...INP, maxWidth:320 }} placeholder="Search by name, student ID, department..." value={search} onChange={e=>setSearch(e.target.value)} />
+      <input style={{ ...INP, maxWidth:320 }} placeholder="Search by name, ID, department..." value={search} onChange={e=>setSearch(e.target.value)} />
       <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:14, overflow:"auto" }}>
         <table>
           <thead><tr><th>User</th><th>Dept / Level</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             {filtered.map(u => (
               <tr key={u.id}>
-                <td>
-                  <div style={{ fontWeight:700 }}>{u.username}</div>
-                  <div style={{ color:"#64748b", fontSize:11 }}>{u.student_id}</div>
-                </td>
+                <td><div style={{ fontWeight:700 }}>{u.username}</div><div style={{ color:"#64748b", fontSize:11 }}>{u.student_id}</div></td>
                 <td>{u.department}<br/><span style={{ color:"#64748b", fontSize:11 }}>{u.level}</span></td>
                 <td>
-                  <select value={u.role||"student"} onChange={e=>changeRole(u, e.target.value)}
-                    style={{ background:"#1e2a3a", color:"#e2e8f0", border:"1px solid #2d3f55", borderRadius:6, padding:"4px 6px", fontSize:12 }}
-                    disabled={u.id===myId}>
+                  <select value={u.role||"student"} onChange={e=>changeRole(u,e.target.value)} disabled={u.id===myId}
+                    style={{ background:"#1e2a3a", color:"#e2e8f0", border:"1px solid #2d3f55", borderRadius:6, padding:"4px 6px", fontSize:12 }}>
                     <option value="student">student</option>
                     <option value="moderator">moderator</option>
                     <option value="admin">admin</option>
                   </select>
                 </td>
-                <td>
-                  {u.is_banned
-                    ? <span style={{ color:"#f87171", fontWeight:700 }}>🚫 Banned{u.banned_until?` (until ${new Date(u.banned_until).toLocaleDateString()})`:" (permanent)"}</span>
-                    : <span style={{ color:"#22c55e" }}>Active</span>}
-                </td>
-                <td>
-                  {u.is_banned
-                    ? <button style={BTN_GHOST} onClick={()=>unbanUser(u)}>Unban</button>
-                    : <button style={BTN_DANGER} onClick={()=>setBanModal(u)} disabled={u.id===myId}>Ban</button>}
-                </td>
+                <td>{u.is_banned ? <span style={{ color:"#f87171", fontWeight:700 }}>🚫 Banned</span> : <span style={{ color:"#22c55e" }}>Active</span>}</td>
+                <td>{u.is_banned ? <button style={BTN_GHOST} onClick={()=>unbanUser(u)}>Unban</button> : <button style={BTN_DANGER} onClick={()=>setBanModal(u)} disabled={u.id===myId}>Ban</button>}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
       {banModal && <BanModal user={banModal} onClose={()=>setBanModal(null)} onConfirm={banUser} />}
     </div>
   );
 }
 
-function BanModal({ user, onClose, onConfirm }) {
-  const [reason, setReason] = useState("");
-  const [days, setDays] = useState("7");
-
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={onClose}>
-      <div style={{ background:"#111827", border:"1px solid #2d3f55", borderRadius:16, padding:24, width:"100%", maxWidth:360 }} onClick={e=>e.stopPropagation()}>
-        <h3 style={{ color:"#e2e8f0", fontSize:16, marginBottom:12 }}>🚫 Ban {user.username}</h3>
-        <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>Reason</label>
-        <textarea style={{ ...INP, minHeight:70, resize:"vertical" }} placeholder="Reason for ban..." value={reason} onChange={e=>setReason(e.target.value)} />
-        <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>Duration</label>
-        <select style={{ ...INP, appearance:"none" }} value={days} onChange={e=>setDays(e.target.value)}>
-          <option value="1">1 day</option>
-          <option value="7">7 days</option>
-          <option value="30">30 days</option>
-          <option value="permanent">Permanent</option>
-        </select>
-        <div style={{ display:"flex", gap:10, marginTop:10 }}>
-          <button style={{ ...BTN_GHOST, flex:1 }} onClick={onClose}>Cancel</button>
-          <button style={{ ...BTN_DANGER, flex:1 }} onClick={()=>onConfirm(user, reason||"No reason provided", days==="permanent"?"permanent":parseInt(days))} disabled={!reason.trim()}>Confirm Ban</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Messages Tab ────────────────────────────────────────────
 function MessagesTab({ token, myId, onAction }) {
   const [room, setRoom] = useState("general");
   const [messages, setMessages] = useState([]);
@@ -330,16 +270,12 @@ function MessagesTab({ token, myId, onAction }) {
   }
 
   async function deleteMsg(msg) {
-    if (!confirm(`Delete this message from ${msg.username}?`)) return;
+    if (!confirm(`Delete message from ${msg.username}?`)) return;
     try {
       await sbFetch(`/messages?id=eq.${msg.id}`, { method:"DELETE", headers:{ Authorization:`Bearer ${token}` } }, token);
-      await sbFetch("/moderation_logs", {
-        method:"POST", headers:{ Authorization:`Bearer ${token}` },
-        body: JSON.stringify({ moderator_id: myId, target_user_id: msg.user_id, action:"delete_message", reason:`Deleted message in #${room}` })
-      }, token);
-      load();
-      onAction();
-    } catch { alert("Failed to delete message."); }
+      await sbFetch("/moderation_logs", { method:"POST", headers:{ Authorization:`Bearer ${token}` }, body:JSON.stringify({ moderator_id:myId, target_user_id:msg.user_id, action:"delete_message", reason:`Deleted in #${room}` }) }, token);
+      load(); onAction();
+    } catch { alert("Failed to delete."); }
   }
 
   const filtered = messages.filter(m => !search || m.content?.toLowerCase().includes(search.toLowerCase()) || m.username?.toLowerCase().includes(search.toLowerCase()));
@@ -350,7 +286,7 @@ function MessagesTab({ token, myId, onAction }) {
         <select style={{ ...INP, width:"auto", marginBottom:0 }} value={room} onChange={e=>setRoom(e.target.value)}>
           {ROOMS.map(r => <option key={r} value={r}>#{r}</option>)}
         </select>
-        <input style={{ ...INP, flex:1, marginBottom:0, minWidth:160 }} placeholder="Search content or username..." value={search} onChange={e=>setSearch(e.target.value)} />
+        <input style={{ ...INP, flex:1, marginBottom:0, minWidth:160 }} placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
       </div>
       <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:14, overflow:"auto", maxHeight:600 }}>
         <table>
@@ -359,9 +295,7 @@ function MessagesTab({ token, myId, onAction }) {
             {filtered.map(m => (
               <tr key={m.id}>
                 <td style={{ whiteSpace:"nowrap" }}>{m.username}</td>
-                <td style={{ maxWidth:300, overflow:"hidden", textOverflow:"ellipsis" }}>
-                  {m.image_url ? <span>📷 <a href={m.image_url} target="_blank" style={{ color:"#6C63FF" }}>Image</a></span> : m.content}
-                </td>
+                <td style={{ maxWidth:300, overflow:"hidden", textOverflow:"ellipsis" }}>{m.image_url ? <span>📷 Image</span> : m.content}</td>
                 <td style={{ whiteSpace:"nowrap", color:"#64748b", fontSize:12 }}>{new Date(m.created_at).toLocaleString()}</td>
                 <td><button style={BTN_DANGER} onClick={()=>deleteMsg(m)}>Delete</button></td>
               </tr>
@@ -373,157 +307,3 @@ function MessagesTab({ token, myId, onAction }) {
     </div>
   );
 }
-
-// ─── Reports Tab ─────────────────────────────────────────────
-function ReportsTab({ token, myId, profiles, onAction }) {
-  const [reports, setReports] = useState([]);
-  const [filter, setFilter] = useState("pending");
-
-  useEffect(() => { load(); }, [filter]);
-
-  async function load() {
-    try {
-      const q = filter === "all" ? "" : `&status=eq.${filter}`;
-      const data = await sbFetch(`/reports?order=created_at.desc${q}`, { headers:{ Authorization:`Bearer ${token}` } }, token);
-      setReports(data);
-    } catch {}
-  }
-
-  async function updateStatus(report, status) {
-    try {
-      await sbFetch(`/reports?id=eq.${report.id}`, {
-        method:"PATCH", headers:{ Authorization:`Bearer ${token}` },
-        body: JSON.stringify({ status })
-      }, token);
-      load();
-      onAction();
-    } catch { alert("Failed to update report."); }
-  }
-
-  return (
-    <div>
-      <select style={{ ...INP, width:"auto" }} value={filter} onChange={e=>setFilter(e.target.value)}>
-        <option value="pending">Pending</option>
-        <option value="reviewed">Reviewed</option>
-        <option value="dismissed">Dismissed</option>
-        <option value="action_taken">Action Taken</option>
-        <option value="all">All</option>
-      </select>
-      {reports.length===0 && <div style={{ color:"#64748b", padding:20, textAlign:"center" }}>No reports.</div>}
-      {reports.map(r => (
-        <div key={r.id} style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:12, padding:14, marginBottom:10 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
-            <span style={{ color:"#e2e8f0", fontWeight:700, fontSize:13 }}>
-              Report on {profiles[r.reported_user_id]?.username || "Unknown user"}
-            </span>
-            <span style={{ color:"#64748b", fontSize:11 }}>{new Date(r.created_at).toLocaleString()}</span>
-          </div>
-          <div style={{ color:"#94a3b8", fontSize:13, marginBottom:8 }}>{r.reason}</div>
-          <div style={{ color:"#64748b", fontSize:11, marginBottom:8 }}>
-            Reported by: {profiles[r.reporter_id]?.username || "Unknown"} · Status: <b>{r.status}</b>
-          </div>
-          {r.status === "pending" && (
-            <div style={{ display:"flex", gap:8 }}>
-      <button style={BTN} onClick={()=>updateStatus(r,"action_taken")}>Mark Action Taken</button>
-              <button style={BTN_GHOST} onClick={()=>updateStatus(r,"dismissed")}>Dismiss</button>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Moderation Log Tab ──────────────────────────────────────
-function LogTab({ token, profiles }) {
-  const [logs, setLogs] = useState([]);
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    try {
-      const data = await sbFetch(`/moderation_logs?order=created_at.desc&limit=200`, { headers:{ Authorization:`Bearer ${token}` } }, token);
-      setLogs(data);
-    } catch {}
-  }
-
-  return (
-    <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:14, overflow:"auto", maxHeight:600 }}>
-      <table>
-        <thead><tr><th>Moderator</th><th>Action</th><th>Target</th><th>Reason</th><th>Time</th></tr></thead>
-        <tbody>
-          {logs.map(l => (
-            <tr key={l.id}>
-              <td>{profiles[l.moderator_id]?.username || "—"}</td>
-              <td><span style={{ color:"#a89eff" }}>{l.action}</span></td>
-              <td>{profiles[l.target_user_id]?.username || "—"}</td>
-              <td style={{ maxWidth:240, overflow:"hidden", textOverflow:"ellipsis" }}>{l.reason}</td>
-              <td style={{ whiteSpace:"nowrap", color:"#64748b", fontSize:12 }}>{new Date(l.created_at).toLocaleString()}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {logs.length===0 && <div style={{ color:"#64748b", padding:20, textAlign:"center" }}>No moderation actions yet.</div>}
-    </div>
-  );
-}
-
-// ─── Main App ────────────────────────────────────────────────
-function App() {
-  const [session, setSession] = useState(null);
-  const [adminProfile, setAdminProfile] = useState(null);
-  const [tab, setTab] = useState("overview");
-  const [profiles, setProfiles] = useState({});
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    if (!session) return;
-    sbFetch(`/profiles?select=id,username,avatar_color,role`, { headers:{ Authorization:`Bearer ${session.access_token}` } }, session.access_token)
-      .then(data => {
-        const map = {};
-        data.forEach(p => map[p.id] = p);
-        setProfiles(map);
-      });
-  }, [session, refreshKey]);
-
-  if (!session) return <AdminLogin onLogin={(s,p)=>{ setSession(s); setAdminProfile(p); }} />;
-
-  const tabs = [
-    { id:"overview", label:"📊 Overview" },
-    { id:"users", label:"👥 Users" },
-    { id:"messages", label:"💬 Messages" },
-    { id:"reports", label:"🚩 Reports" },
-    { id:"logs", label:"📜 Mod Log" },
-  ];
-
-  return (
-    <div style={{ minHeight:"100vh", background:"#0d1520", padding:16 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20, flexWrap:"wrap", gap:10 }}>
-        <div>
-          <h1 style={{ color:"#e2e8f0", fontSize:20, fontWeight:800 }}>🛠️ CampusHub Admin</h1>
-          <div style={{ color:"#64748b", fontSize:12 }}>Logged in as {adminProfile.username} ({adminProfile.role})</div>
-        </div>
-        <button style={BTN_GHOST} onClick={()=>{ setSession(null); setAdminProfile(null); }}>Log out</button>
-      </div>
-
-      <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
-        {tabs.map(t => (
-          <button key={t.id} style={{ ...BTN, background: tab===t.id?"#6C63FF":"#1e2a3a", color: tab===t.id?"#fff":"#94a3b8" }}
-            onClick={()=>setTab(t.id)}>{t.label}</button>
-        ))}
-      </div>
-
-      {tab==="overview" && <OverviewTab token={session.access_token} key={refreshKey} />}
-      {tab==="users" && <UsersTab token={session.access_token} myId={session.user.id} onAction={()=>setRefreshKey(k=>k+1)} />}
-      {tab==="messages" && <MessagesTab token={session.access_token} myId={session.user.id} onAction={()=>setRefreshKey(k=>k+1)} />}
-      {tab==="reports" && <ReportsTab token={session.access_token} myId={session.user.id} profiles={profiles} onAction={()=>setRefreshKey(k=>k+1)} />}
-      {tab==="logs" && <LogTab token={session.access_token} profiles={profiles} />}
-    </div>
-  );
-}
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
-</script>
-</body>
-</html>   
