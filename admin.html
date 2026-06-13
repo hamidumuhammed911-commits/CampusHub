@@ -370,6 +370,7 @@ function MessagesTab({ token, myId, onAction }) {
         </table>
         {filtered.length===0 && <div style={{ color:"#64748b", padding:20, textAlign:"center" }}>No messages found.</div>}
       </div>
+    </div>
   );
 }
 
@@ -423,106 +424,4 @@ function ReportsTab({ token, myId, profiles, onAction }) {
           </div>
           {r.status === "pending" && (
             <div style={{ display:"flex", gap:8 }}>
-              <button style={BTN} onClick={()=>updateStatus(r,"action_taken")}>Mark Action Taken</button>
-              <button style={BTN_GHOST} onClick={()=>updateStatus(r,"dismissed")}>Dismiss</button>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Moderation Log Tab ──────────────────────────────────────
-function LogTab({ token, profiles }) {
-  const [logs, setLogs] = useState([]);
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    try {
-      const data = await sbFetch(`/moderation_logs?order=created_at.desc&limit=200`, { headers:{ Authorization:`Bearer ${token}` } }, token);
-      setLogs(data);
-    } catch {}
-  }
-
-  return (
-    <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:14, overflow:"auto", maxHeight:600 }}>
-      <table>
-        <thead><tr><th>Moderator</th><th>Action</th><th>Target</th><th>Reason</th><th>Time</th></tr></thead>
-        <tbody>
-          {logs.map(l => (
-            <tr key={l.id}>
-              <td>{profiles[l.moderator_id]?.username || "—"}</td>
-              <td><span style={{ color:"#a89eff" }}>{l.action}</span></td>
-              <td>{profiles[l.target_user_id]?.username || "—"}</td>
-              <td style={{ maxWidth:240, overflow:"hidden", textOverflow:"ellipsis" }}>{l.reason}</td>
-              <td style={{ whiteSpace:"nowrap", color:"#64748b", fontSize:12 }}>{new Date(l.created_at).toLocaleString()}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {logs.length===0 && <div style={{ color:"#64748b", padding:20, textAlign:"center" }}>No moderation actions yet.</div>}
-    </div>
-  );
-}
-
-// ─── Main App ────────────────────────────────────────────────
-function App() {
-  const [session, setSession] = useState(null);
-  const [adminProfile, setAdminProfile] = useState(null);
-  const [tab, setTab] = useState("overview");
-  const [profiles, setProfiles] = useState({});
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    if (!session) return;
-    sbFetch(`/profiles?select=id,username,avatar_color,role`, { headers:{ Authorization:`Bearer ${session.access_token}` } }, session.access_token)
-      .then(data => {
-        const map = {};
-        data.forEach(p => map[p.id] = p);
-        setProfiles(map);
-      });
-  }, [session, refreshKey]);
-
-  if (!session) return <AdminLogin onLogin={(s,p)=>{ setSession(s); setAdminProfile(p); }} />;
-
-  const tabs = [
-    { id:"overview", label:"📊 Overview" },
-    { id:"users", label:"👥 Users" },
-    { id:"messages", label:"💬 Messages" },
-    { id:"reports", label:"🚩 Reports" },
-    { id:"logs", label:"📜 Mod Log" },
-  ];
-
-  return (
-    <div style={{ minHeight:"100vh", background:"#0d1520", padding:16 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20, flexWrap:"wrap", gap:10 }}>
-        <div>
-          <h1 style={{ color:"#e2e8f0", fontSize:20, fontWeight:800 }}>🛠️ CampusHub Admin</h1>
-          <div style={{ color:"#64748b", fontSize:12 }}>Logged in as {adminProfile.username} ({adminProfile.role})</div>
-        </div>
-        <button style={BTN_GHOST} onClick={()=>{ setSession(null); setAdminProfile(null); }}>Log out</button>
-      </div>
-
-      <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
-        {tabs.map(t => (
-          <button key={t.id} style={{ ...BTN, background: tab===t.id?"#6C63FF":"#1e2a3a", color: tab===t.id?"#fff":"#94a3b8" }}
-            onClick={()=>setTab(t.id)}>{t.label}</button>
-        ))}
-      </div>
-
-      {tab==="overview" && <OverviewTab token={session.access_token} key={refreshKey} />}
-      {tab==="users" && <UsersTab token={session.access_token} myId={session.user.id} onAction={()=>setRefreshKey(k=>k+1)} />}
-      {tab==="messages" && <MessagesTab token={session.access_token} myId={session.user.id} onAction={()=>setRefreshKey(k=>k+1)} />}
-      {tab==="reports" && <ReportsTab token={session.access_token} myId={session.user.id} profiles={profiles} onAction={()=>setRefreshKey(k=>k+1)} />}
-      {tab==="logs" && <LogTab token={session.access_token} profiles={profiles} />}
-    </div>
-  );
-}
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
-</script>
-</body>
-</html>
+         
