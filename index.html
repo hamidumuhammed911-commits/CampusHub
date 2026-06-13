@@ -389,3 +389,375 @@ function DateDivider({ label }) {
 }
 
 // ─── TypingIndicator ────────────────────────────────────────────────────
+function TypingIndicator({ typers }) {
+  if (!typers || typers.length === 0) return null;
+  const names = typers.slice(0,2).join(", ");
+  const extra = typers.length > 2 ? ` +${typers.length-2}` : "";
+  return (
+    <div style={{ color:"#64748b", fontSize:12, padding:"0 16px 6px", display:"flex", alignItems:"center", gap:6 }}>
+      <span style={{ display:"inline-flex", gap:3 }}>
+        {[0,1,2].map(i=>(
+          <span key={i} style={{ width:5, height:5, borderRadius:"50%", background:"#475569", display:"inline-block", animation:`pulse ${0.8+i*0.2}s infinite` }} />
+        ))}
+      </span>
+      <span>{names}{extra} typing…</span>
+    </div>
+  );
+}
+
+// ─── ConversationList ──────────────────────────────
+function ConversationList({ conversations, profiles, myId, onlineUsers, onSelect }) {
+  if (!conversations.length) {
+    return <div style={{ color:"#475569", textAlign:"center", marginTop:40, padding:16 }}>No conversations yet. Start a DM from someone's profile! 💬</div>;
+  }
+  return (
+    <div style={{ display:"flex", flexDirection:"column" }}>
+      {conversations.map(conv => {
+        const otherId = conv.user1_id === myId ? conv.user2_id : conv.user1_id;
+        const p = profiles[otherId] || { username: "Unknown" };
+        const isOnline = !!onlineUsers[otherId];
+        return (
+          <button key={conv.id} onClick={()=>onSelect(conv, otherId)}
+            style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", background:"none", border:"none",
+              borderBottom:"1px solid #1e2d3d", cursor:"pointer", textAlign:"left", width:"100%" }}>
+            <Avatar name={p.username} color={p.avatar_color} url={p.avatar_url} size={42} online={isOnline} />
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>{p.username}</div>
+              <div style={{ color:"#64748b", fontSize:12 }}>{isOnline ? "Online" : "Offline"}</div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// small helper
+function isOwnMsg(msg, myId) { return msg.sender_id === myId; }
+
+// ─── DmChatView ──────────────────────────────
+function DmChatView({ conversation, otherProfile, session, onBack, onlineUsers }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [replyTo, setReplyTo] = useState(null);
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [otherTyping, setOtherTyping] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
+  const [msgMenuId, setMsgMenuId] = useState(null);
+  const bottomRef = useRef(null);
+  const pollRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+  const imgRef = useRef();
+
+  const myId = session.user.id;
+  const token = session.access_token;
+  const isOnline = !!onlineUsers[otherProfile.id];
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
+
+  useEffect(() => {
+    load();
+    markDmRead(conversation.id, myId, token);
+    clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => {
+      load();
+      markDmRead(conversation.id, myId, token);
+      loadDmTypers(conversation.id, myId, token).then(setOtherTyping);
+    }, 3000);
+    return () => clearInterval(pollRef.current);
+  }, [conversation.id]);
+
+  async function load() {
+    const data = await loadDirectMessages(conversation.id, token);
+    setMessages(data);
+  }
+
+  function handleInputChange(e) {
+    setInput(e.target.value);
+    clearTimeout(typingTimeoutRef.current);
+    broadcastDmTyping(conversation.id, myId, token);
+    typingTimeoutRef.current = setTimeout(()=>{}, 4000);
+  }
+
+  async function send(mediaUrl = null, mediaType = null) {
+    if (!mediaUrl && !input.trim()) return;
+    setSending(true);
+    try {
+      await sendDirectMessage(conversation.id, myId, mediaUrl?null:input.trim(), replyTo?.id||null, mediaUrl, mediaType, token);
+      setInput(""); setReplyTo(null);
+      await load();
+    } catch {}
+    setSending(false);
+  }
+
+  async function handleImageSend(e) {
+    const file = e.target.files[0]; if (!file) return;
+    setUploadingImg(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      await send(url, "image");
+    } catch { alert("Image upload failed."); }
+    setUploadingImg(false);
+    e.target.value = "";
+  }
+
+  async function editMessage(msgId, newContent) {
+    try {
+      await sbFetch(`/direct_messages?id=eq.${msgId}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: newContent, edited_at: new Date().toISOString() })
+      }, token);
+      await load();
+    } catch {}
+  }
+
+  async function deleteDm(msgId) {
+    try {
+      await sbFetch(`/direct_messages?id=eq.${msgId}`, { method:"DELETE",
+        headers:{ Authorization:`Bearer ${token}` } }, token);
+      setMsgMenuId(null);
+      await load();
+    } catch {}
+  }
+
+  const grouped = [];
+  let lastDate = null;
+  messages.forEach(msg => {
+    const d = dateStr(msg.created_at);
+    if (d !== lastDate) { grouped.push({ type:"divider", label:d }); lastDate = d; }
+    grouped.push({ type:"msg", msg });
+  });
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%" }}
+      onClick={()=>{ if(msgMenuId) setMsgMenuId(null); }}>
+      {lightbox && <Lightbox url={lightbox} onClose={()=>setLightbox(null)} />}
+      <div style={{ padding:"12px 16px", borderBottom:"1px solid #1e2d3d", background:"#111827", display:"flex", alignItems:"center", gap:12 }}>
+        <button style={{ background:"none", border:"none", color:"#94a3b8", fontSize:20, cursor:"pointer" }} onClick={onBack}>←</button>
+        <Avatar name={otherProfile.username} color={otherProfile.avatar_color} url={otherProfile.avatar_url} size={36} online={isOnline} />
+        <div style={{ flex:1 }}>
+          <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>{otherProfile.username}</div>
+          <div style={{ color: isOnline?"#22c55e":"#475569", fontSize:11 }}>{isOnline ? "● Online" : "Offline"}</div>
+        </div>
+      </div>
+
+      <div style={{ flex:1, overflowY:"auto", padding:16, display:"flex", flexDirection:"column", gap:4 }}>
+        {messages.length===0 && <div style={{ color:"#475569", textAlign:"center", marginTop:40 }}>No messages yet — say hello! 👋</div>}
+        {grouped.map((item, idx) => {
+          if (item.type==="divider") return <DateDivider key={`d-${idx}`} label={item.label} />;
+          const { msg } = item;
+          const isOwn = msg.sender_id === myId;
+          const showMenu = msgMenuId === msg.id;
+          const isRead = isOwn && !!msg.read_at;
+
+          return (
+            <div key={msg.id} className="msg-bubble" style={{ display:"flex", alignItems:"flex-start", gap:10, flexDirection:isOwn?"row-reverse":"row", marginBottom:4, position:"relative" }}>
+              <div style={{ maxWidth:"72%", display:"flex", flexDirection:"column", alignItems:isOwn?"flex-end":"flex-start" }}>
+                {msg.reply_to && (
+                  <div style={{ background:"rgba(108,99,255,0.1)", borderLeft:"3px solid #6C63FF", borderRadius:"0 8px 8px 0", padding:"4px 10px", marginBottom:4, maxWidth:"100%" }}>
+                    <div style={{ color:"#a89eff", fontSize:10, fontWeight:700 }}>↩ Reply</div>
+                  </div>
+                )}
+                <div
+                  onContextMenu={e=>{ e.preventDefault(); setMsgMenuId(msg.id); }}
+                  onTouchStart={()=>{ const t=setTimeout(()=>setMsgMenuId(msg.id),600); return ()=>clearTimeout(t); }}
+                  style={{ padding:msg.media_url?"4px":"9px 13px", color:"#e2e8f0", fontSize:14, lineHeight:1.5, wordBreak:"break-word",
+                    background:isOwn?"#6C63FF":"#1e2a3a",
+                    borderRadius:isOwn?"18px 18px 4px 18px":"18px 18px 18px 4px", cursor:"default" }}>
+                  {msg.media_url && msg.media_type==="image" && <img src={msg.media_url} className="img-msg" onClick={()=>setLightbox(msg.media_url)} alt="shared" />}
+                  {msg.content && <span>{msg.content}</span>}
+                </div>
+                <span style={{ color:"#475569", fontSize:10, marginTop:2, display:"flex", gap:4, alignItems:"center" }}>
+                  {timeStr(msg.created_at)}
+                  {msg.edited_at && <span style={{ fontStyle:"italic" }}>(edited)</span>}
+                  {isOwn && <span style={{ color: isRead ? "#4FC3F7" : "#475569" }}>{isRead ? "✓✓" : "✓"}</span>}
+                </span>
+              </div>
+              {showMenu && (
+                <div style={{ position:"absolute", [isOwn?"right":"left"]:0, top:0, background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:12, padding:6, zIndex:40, minWidth:130, boxShadow:"0 4px 20px rgba(0,0,0,0.4)" }}>
+                  <button style={{ display:"block", width:"100%", background:"none", border:"none", color:"#e2e8f0", fontSize:13, padding:"7px 12px", cursor:"pointer", textAlign:"left", borderRadius:8 }}
+                    onClick={()=>{ setReplyTo(msg); setMsgMenuId(null); }}>↩ Reply</button>
+                  {isOwn && msg.media_type !== "image" && <button style={{ display:"block", width:"100%", background:"none", border:"none", color:"#e2e8f0", fontSize:13, padding:"7px 12px", cursor:"pointer", textAlign:"left", borderRadius:8 }}
+                    onClick={()=>{ const nc = prompt("Edit message:", msg.content); if(nc!=null) editMessage(msg.id, nc); setMsgMenuId(null); }}>✏ Edit</button>}
+                  {isOwn && <button style={{ display:"block", width:"100%", background:"none", border:"none", color:"#f87171", fontSize:13, padding:"7px 12px", cursor:"pointer", textAlign:"left", borderRadius:8 }}
+                    onClick={()=>deleteDm(msg.id)}>🗑 Delete</button>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <div ref={bottomRef} />
+      </div>
+
+      {otherTyping && (
+        <div style={{ color:"#64748b", fontSize:12, padding:"0 16px 6px" }}>{otherProfile.username} is typing…</div>
+      )}
+
+      <div style={{ padding:"10px 12px", borderTop:"1px solid #1e2d3d", background:"#111827" }}>
+        <ReplyPreview msg={replyTo ? { username: isOwnMsg(replyTo, myId) ? "You" : otherProfile.username, content: replyTo.content, image_url: replyTo.media_url } : null} onCancel={()=>setReplyTo(null)} />
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <button style={{ background:"none", border:"1px solid #2d3f55", borderRadius:"50%", width:38, height:38, color:"#64748b", fontSize:18, cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}
+            onClick={()=>imgRef.current.click()} disabled={uploadingImg} title="Send image">
+            {uploadingImg?"⏳":"📎"}
+          </button>
+          <input ref={imgRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleImageSend} />
+          <input style={{ flex:1, background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:12, padding:"10px 14px", color:"#e2e8f0", fontSize:14, outline:"none" }}
+            placeholder={`Message ${otherProfile.username}...`} value={input}
+            onChange={handleInputChange}
+            onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } }} />
+          <button style={{ width:38, height:38, borderRadius:"50%", background:"#6C63FF", border:"none", color:"#fff", fontSize:18, cursor:"pointer", fontWeight:700, opacity:(input.trim()||uploadingImg)&&!sending?1:0.4, flexShrink:0 }}
+            onClick={()=>send()} disabled={(!input.trim()&&!uploadingImg)||sending}>
+            {sending?"…":"↑"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── GlobalSearch ────────────────────────────────────────────────────────────
+function GlobalSearch({ session, profiles, onClose, onOpenDm, onSwitchRoom }) {
+  const [query, setQuery] = useState("");
+  const [tab, setTab] = useState("messages");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef();
+  const debounceRef = useRef();
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    if (!query.trim()) { setResults([]); return; }
+    debounceRef.current = setTimeout(() => runSearch(query.trim()), 350);
+    return () => clearTimeout(debounceRef.current);
+  }, [query, tab]);
+
+  async function runSearch(q) {
+    setLoading(true);
+    try {
+      if (tab === "messages") {
+        const data = await sbFetch(
+          `/messages?content=ilike.*${encodeURIComponent(q)}*&order=created_at.desc&limit=30`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } },
+          session.access_token
+        );
+        setResults(data);
+      } else if (tab === "users") {
+        const data = await sbFetch(
+          `/profiles?or=(username.ilike.*${encodeURIComponent(q)}*,department.ilike.*${encodeURIComponent(q)}*,university.ilike.*${encodeURIComponent(q)}*)&limit=30`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } },
+          session.access_token
+        );
+        setResults(data);
+      } else {
+        setResults(ROOMS.filter(r =>
+          r.label.toLowerCase().includes(q.toLowerCase()) ||
+          r.id.toLowerCase().includes(q.toLowerCase())
+        ));
+      }
+    } catch { setResults([]); }
+    setLoading(false);
+  }
+
+  function highlight(text, q) {
+    if (!q || !text) return text;
+    const idx = text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx === -1) return text;
+    return (
+      <span>
+        {text.slice(0, idx)}
+        <mark style={{ background:"rgba(108,99,255,0.35)", color:"#e2e8f0", borderRadius:3, padding:"0 2px" }}>
+          {text.slice(idx, idx + q.length)}
+        </mark>
+        {text.slice(idx + q.length)}
+      </span>
+    );
+  }
+
+  const TABS = [
+    { id:"messages", label:"💬 Messages" },
+    { id:"users",    label:"👤 People" },
+    { id:"rooms",    label:"🏠 Rooms" },
+  ];
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:200, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:20 }}
+      onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
+      <div style={{ width:"100%", maxWidth:480, background:"#111827", borderRadius:20, border:"1px solid #2d3f55", overflow:"hidden", display:"flex", flexDirection:"column", maxHeight:"85vh", margin:"0 16px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 16px", borderBottom:"1px solid #1e2d3d" }}>
+          <span style={{ color:"#6C63FF", fontSize:18, flexShrink:0 }}>🔍</span>
+          <input
+            ref={inputRef}
+            style={{ flex:1, background:"transparent", border:"none", outline:"none", color:"#e2e8f0", fontSize:15 }}
+            placeholder="Search messages, people, rooms…"
+            value={query}
+            onChange={e=>setQuery(e.target.value)}
+          />
+          {query && <button onClick={()=>setQuery("")} style={{ background:"none", border:"none", color:"#64748b", fontSize:18, cursor:"pointer", padding:0, lineHeight:1 }}>✕</button>}
+          <button onClick={onClose} style={{ background:"none", fontSize:13, cursor:"pointer", padding:"4px 8px", borderRadius:8, border:"1px solid #2d3f55", color:"#94a3b8" }}>Esc</button>
+        </div>
+        <div style={{ display:"flex", borderBottom:"1px solid #1e2d3d" }}>
+          {TABS.map(t => (
+            <button key={t.id} onClick={()=>{ setTab(t.id); setResults([]); if(query.trim()) runSearch(query.trim()); }}
+              style={{ flex:1, padding:"10px 0", border:"none", cursor:"pointer", fontSize:12, fontWeight:700,
+                background:"transparent",
+                color: tab===t.id ? "#a89eff" : "#475569",
+                borderBottom: tab===t.id ? "2px solid #6C63FF" : "2px solid transparent" }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ flex:1, overflowY:"auto" }}>
+          {!query.trim() && (
+            <div style={{ color:"#475569", textAlign:"center", padding:"40px 16px", fontSize:13 }}>
+              Start typing to search across CampusHub
+            </div>
+          )}
+          {loading && <div style={{ color:"#475569", textAlign:"center", padding:"30px 16px", fontSize:13 }}>Searching…</div>}
+          {!loading && query.trim() && results.length === 0 && (
+            <div style={{ color:"#475569", textAlign:"center", padding:"40px 16px", fontSize:13 }}>No results for "{query}"</div>
+          )}
+          {tab === "messages" && results.map(msg => {
+            const room = ROOMS.find(r => r.id === msg.room);
+            return (
+              <button key={msg.id} onClick={()=>{ onSwitchRoom(msg.room); onClose(); }}
+                style={{ display:"block", width:"100%", textAlign:"left", padding:"12px 16px", background:"none", border:"none",
+                  borderBottom:"1px solid #1e2d3d", cursor:"pointer" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                  <span style={{ color:"#6C63FF", fontSize:11, fontWeight:700 }}>{room ? `${room.emoji} #${room.label}` : msg.room}</span>
+                  <span style={{ color:"#475569", fontSize:10, marginLeft:"auto" }}>{timeStr(msg.created_at)}</span>
+                </div>
+                <div style={{ color:"#94a3b8", fontSize:12, fontWeight:700, marginBottom:2 }}>{msg.username}</div>
+                <div style={{ color:"#cbd5e1", fontSize:13, lineHeight:1.4, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>
+                  {msg.image_url ? "📷 Photo" : highlight(msg.content, query)}
+                </div>
+              </button>
+            );
+          })}
+          {tab === "users" && results.map(p => (
+            <button key={p.id} onClick={()=>{ if(p.id !== session.user.id) onOpenDm(p.id); onClose(); }}
+              style={{ display:"flex", alignItems:"center", gap:12, width:"100%", textAlign:"left", padding:"12px 16px",
+                background:"none", border:"none", borderBottom:"1px solid #1e2d3d", cursor:"pointer" }}>
+              <Avatar name={p.username} color={p.avatar_color} url={p.avatar_url} size={40} />
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:13 }}>{highlight(p.username, query)}</div>
+                {p.department && <div style={{ color:"#64748b", fontSize:11 }}>{highlight(p.department, query)}</div>}
+                {p.university && p.university !== "Not specified" && <div style={{ color:"#475569", fontSize:10 }}>{highlight(p.university, query)}</div>}
+              </div>
+              {p.level && <span style={{ color:"#6C63FF", fontSize:10, fontWeight:700, background:"rgba(108,99,255,0.15)", borderRadius:8, padding:"2px 8px", flexShrink:0 }}>{p.level}</span>}
+              {p.id !== session.user.id && <span style={{ color:"#475569", fontSize:11 }}>DM →</span>}
+            </button>
+          ))}
+          {tab === "rooms" && results.map(room => (
+            <button key={room.id} onClick={()=>{ onSwitchRoom(room.id); onClose(); }}
+              style={{ display:"flex", alignItems:"center", gap:14, width:"100%", textAlign:"left", padding:"14px 16px",
+                background:"none", border:"none", borderBottom:"1px solid #1e2d3d", cursor:"pointer" }}>
+              <span style={{ fontSize:28 }}>{room.emoji}</span>
+              <div>
+                <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>#{highlight(room.label, query)}</div>
+                <div style={{ color:"#475569", fontSize:11 }}>Tap to open room</div>
+              </div>
+              <span 
