@@ -733,4 +733,107 @@
                     </div>
                   </div>
                   <button style={{ background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:16, padding:4 }}
-                     
+           
+onClick={e=>{ e.stopPropagation(); logout(); }}>⏻</button>
+                </div>
+              </button>
+            </div>
+          </aside>
+
+          <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+            <div style={{ padding:"12px 16px", borderBottom:"1px solid #1e2d3d", background:"#111827", display:"flex", alignItems:"center", gap:12 }}>
+              <button style={{ background:"none", border:"none", color:"#94a3b8", fontSize:20, cursor:"pointer" }} onClick={()=>setSidebarOpen(!sidebarOpen)}>☰</button>
+              <div style={{ flex:1 }}>
+                <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>{currentRoom?.emoji} {currentRoom?.label}</div>
+                <div style={{ color:"#475569", fontSize:11 }}>{messages.length} messages · {onlineCount} online</div>
+              </div>
+            </div>
+
+            <div style={{ flex:1, overflowY:"auto", padding:16, display:"flex", flexDirection:"column", gap:4 }}
+              onClick={()=>{ if(msgMenuId) setMsgMenuId(null); }}>
+              {messages.length===0 && <div style={{ color:"#475569", textAlign:"center", marginTop:40 }}>No messages yet — say hello! 👋</div>}
+              {grouped.map((item, idx) => {
+                if (item.type==="divider") return <DateDivider key={`d-${idx}`} label={item.label} />;
+                const { msg } = item;
+                const isOwn = msg.user_id === session?.user?.id;
+                const p = profiles[msg.user_id] || { username:msg.username, avatar_color:msg.avatar_color };
+                const isOnline = !!onlineUsers[msg.user_id];
+                const msgReactions = reactions[msg.id] || [];
+                const showMenu = msgMenuId === msg.id;
+                return (
+                  <div key={msg.id} className="msg-bubble" style={{ display:"flex", alignItems:"flex-start", gap:10, flexDirection:isOwn?"row-reverse":"row", marginBottom:4, position:"relative" }}>
+                    <button style={{ background:"none", border:"none", cursor:"pointer", padding:0, flexShrink:0 }}
+                      onClick={()=>setViewProfile(profiles[msg.user_id]||null)}>
+                      <Avatar name={msg.username} color={msg.avatar_color} url={p.avatar_url} size={34} online={isOnline} />
+                    </button>
+                    <div style={{ maxWidth:"72%", display:"flex", flexDirection:"column", alignItems:isOwn?"flex-end":"flex-start" }}>
+                      <div style={{ marginBottom:3, display:"flex", flexDirection:"column", alignItems:isOwn?"flex-end":"flex-start" }}>
+                        <span style={{ color:isOwn?"#a89eff":(msg.avatar_color||"#6C63FF"), fontWeight:700, fontSize:12 }}>{isOwn?"You":msg.username}</span>
+                        {!isOwn && p.department && <span style={{ color:"#475569", fontSize:10 }}>{p.department}{p.level?` · ${p.level}`:""}</span>}
+                      </div>
+                      {msg.reply_to_id && (
+                        <div style={{ background:"rgba(108,99,255,0.1)", borderLeft:"3px solid #6C63FF", borderRadius:"0 8px 8px 0", padding:"4px 10px", marginBottom:4, maxWidth:"100%" }}>
+                          <div style={{ color:"#a89eff", fontSize:10, fontWeight:700 }}>↩ {msg.reply_to_username}</div>
+                          <div style={{ color:"#64748b", fontSize:11, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>{msg.reply_to_content}</div>
+                        </div>
+                      )}
+                      <div
+                        onContextMenu={e=>{ e.preventDefault(); setMsgMenuId(msg.id); }}
+                        onTouchStart={()=>{ const t=setTimeout(()=>setMsgMenuId(msg.id),600); return ()=>clearTimeout(t); }}
+                        style={{ padding:msg.image_url?"4px":"9px 13px", color:"#e2e8f0", fontSize:14, lineHeight:1.5, wordBreak:"break-word",
+                          background:isOwn?"#6C63FF":"#1e2a3a",
+                          borderRadius:isOwn?"18px 18px 4px 18px":"18px 18px 18px 4px", cursor:"default", position:"relative" }}>
+                        {msg.image_url && <img src={msg.image_url} className="img-msg" onClick={()=>setLightbox(msg.image_url)} alt="shared" />}
+                        {msg.content && <span>{msg.content}</span>}
+                      </div>
+                      <span style={{ color:"#475569", fontSize:10, marginTop:2 }}>{timeStr(msg.created_at)}</span>
+                      <ReactionBar msgId={msg.id} reactions={msgReactions} userId={session?.user?.id} onReact={toggleReaction} />
+                    </div>
+                    {showMenu && (
+                      <div style={{ position:"absolute", [isOwn?"right":"left"]:44, top:0, background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:12, padding:6, zIndex:40, minWidth:130, boxShadow:"0 4px 20px rgba(0,0,0,0.4)" }}>
+                        <button style={{ display:"block", width:"100%", background:"none", border:"none", color:"#e2e8f0", fontSize:13, padding:"7px 12px", cursor:"pointer", textAlign:"left", borderRadius:8 }}
+                          onClick={()=>{ setReplyTo(msg); setMsgMenuId(null); }}>↩ Reply</button>
+                        {EMOJI_REACTIONS.map(e => (
+                          <button key={e} style={{ display:"inline-block", background:"none", border:"none", fontSize:18, cursor:"pointer", padding:"4px 6px" }}
+                            onClick={()=>{ toggleReaction(msg.id, e); setMsgMenuId(null); }}>{e}</button>
+                        ))}
+                        {isOwn && <button style={{ display:"block", width:"100%", background:"none", border:"none", color:"#f87171", fontSize:13, padding:"7px 12px", cursor:"pointer", textAlign:"left", borderRadius:8, marginTop:4 }}
+                          onClick={()=>deleteMessage(msg.id)}>🗑 Delete</button>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <div ref={bottomRef} />
+            </div>
+
+            <TypingIndicator typers={typers} />
+
+            <div style={{ padding:"10px 12px", borderTop:"1px solid #1e2d3d", background:"#111827" }}>
+              <ReplyPreview msg={replyTo} onCancel={()=>setReplyTo(null)} />
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                <button style={{ background:"none", border:"1px solid #2d3f55", borderRadius:"50%", width:38, height:38, color:"#64748b", fontSize:18, cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}
+                  onClick={()=>imgRef.current.click()} disabled={uploadingImg} title="Send image">
+                  {uploadingImg?"⏳":"📎"}
+                </button>
+                <input ref={imgRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleImageSend} />
+                <input style={{ flex:1, background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:12, padding:"10px 14px", color:"#e2e8f0", fontSize:14, outline:"none" }}
+                  placeholder={`Message #${currentRoom?.label}...`} value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendMessage(); } }} />
+                <button style={{ width:38, height:38, borderRadius:"50%", background:"#6C63FF", border:"none", color:"#fff", fontSize:18, cursor:"pointer", fontWeight:700, opacity:(input.trim()||uploadingImg)&&!sending?1:0.4, flexShrink:0 }}
+                  onClick={()=>sendMessage()} disabled={(!input.trim()&&!uploadingImg)||sending}>
+                  {sending?"…":"↑"}
+                </button>
+              </div>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>          
