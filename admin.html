@@ -307,3 +307,233 @@ function MessagesTab({ token, myId, onAction }) {
     </div>
   );
 }
+function DmsTab({ token, myId, onAction }) {
+  const [convs, setConvs] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [profiles, setProfiles] = useState({});
+
+  useEffect(() => { loadConvs(); }, []);
+
+  async function loadConvs() {
+    try {
+      const data = await sbFetch(`/conversations?order=last_message_at.desc&limit=100`,
+        { headers:{ Authorization:`Bearer ${token}` } }, token);
+      setConvs(data);
+      const ids = [...new Set(data.flatMap(c => [c.user1_id, c.user2_id]))];
+      if (ids.length) {
+        const ps = await sbFetch(`/profiles?id=in.(${ids.join(',')})&select=id,username`,
+          { headers:{ Authorization:`Bearer ${token}` } }, token);
+        const map = {};
+        ps.forEach(p => map[p.id] = p);
+        setProfiles(map);
+      }
+    } catch {}
+  }
+
+  async function loadMessages(conv) {
+    setSelected(conv);
+    try {
+      const data = await sbFetch(`/direct_messages?conversation_id=eq.${conv.id}&order=created_at.asc&limit=200`,
+        { headers:{ Authorization:`Bearer ${token}` } }, token);
+      setMessages(data);
+    } catch {}
+  }
+
+  async function deleteDm(msg) {
+    if (!confirm("Delete this DM?")) return;
+    try {
+      await sbFetch(`/direct_messages?id=eq.${msg.id}`, { method:"DELETE",
+        headers:{ Authorization:`Bearer ${token}` } }, token);
+      await sbFetch("/moderation_logs", { method:"POST",
+        headers:{ Authorization:`Bearer ${token}` },
+        body:JSON.stringify({ moderator_id:myId, target_user_id:msg.sender_id, action:"delete_dm", reason:"Admin deleted DM" })
+      }, token);
+      setMessages(prev => prev.filter(m => m.id !== msg.id));
+      onAction();
+    } catch { alert("Failed to delete."); }
+  }
+
+  return (
+    <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+      <div style={{ flex:"0 0 260px", background:"#111827", border:"1px solid #1e2d3d", borderRadius:14, overflow:"auto", maxHeight:600 }}>
+        <div style={{ padding:"10px 14px", borderBottom:"1px solid #1e2d3d", color:"#64748b", fontSize:11, fontWeight:700, textTransform:"uppercase" }}>Conversations</div>
+        {convs.map(c => (
+          <button key={c.id} onClick={()=>loadMessages(c)}
+            style={{ display:"block", width:"100%", textAlign:"left", padding:"10px 14px",
+              background: selected?.id===c.id?"rgba(108,99,255,0.2)":"none",
+              border:"none", borderBottom:"1px solid #1e2d3d", cursor:"pointer" }}>
+            <div style={{ color:"#e2e8f0", fontSize:13, fontWeight:600 }}>
+              {profiles[c.user1_id]?.username||"..."} ↔ {profiles[c.user2_id]?.username||"..."}
+            </div>
+            <div style={{ color:"#64748b", fontSize:11 }}>{new Date(c.last_message_at).toLocaleDateString()}</div>
+          </button>
+        ))}
+        {convs.length===0 && <div style={{ color:"#64748b", padding:20, textAlign:"center" }}>No conversations.</div>}
+      </div>
+
+      <div style={{ flex:1, minWidth:260, background:"#111827", border:"1px solid #1e2d3d", borderRadius:14, overflow:"auto", maxHeight:600 }}>
+        {!selected && <div style={{ color:"#64748b", padding:40, textAlign:"center" }}>Select a conversation to view messages.</div>}
+        {selected && <>
+          <table>
+            <thead><tr><th>Sender</th><th>Message</th><th>Time</th><th></th></tr></thead>
+            <tbody>
+              {messages.map(m => (
+                <tr key={m.id}>
+                  <td style={{ whiteSpace:"nowrap" }}>{profiles[m.sender_id]?.username||m.sender_id?.slice(0,8)}</td>
+                  <td style={{ maxWidth:240, overflow:"hidden", textOverflow:"ellipsis" }}>
+                    {m.media_url ? <span>📷 Media</span> : m.content}
+                  </td>
+                  <td style={{ whiteSpace:"nowrap", color:"#64748b", fontSize:12 }}>{new Date(m.created_at).toLocaleString()}</td>
+                  <td><button style={BTN_DANGER} onClick={()=>deleteDm(m)}>Delete</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {messages.length===0 && <div style={{ color:"#64748b", padding:20, textAlign:"center" }}>No messages.</div>}
+        </>}
+      </div>
+    </div>
+  );
+}
+
+function ReportsTab({ token, myId, profiles, onAction }) {
+  const [reports, setReports] = useState([]);
+  const [filter, setFilter] = useState("pending");
+
+  useEffect(() => { load(); }, [filter]);
+
+  async function load() {
+    try {
+      const q = filter==="all" ? "" : `&status=eq.${filter}`;
+      const data = await sbFetch(`/reports?order=created_at.desc${q}`, { headers:{ Authorization:`Bearer ${token}` } }, token);
+      setReports(data);
+    } catch {}
+  }
+
+  async function updateStatus(report, status) {
+    try {
+      await sbFetch(`/reports?id=eq.${report.id}`, { method:"PATCH", headers:{ Authorization:`Bearer ${token}` }, body:JSON.stringify({ status }) }, token);
+      load(); onAction();
+    } catch { alert("Failed to update."); }
+  }
+
+  return (
+    <div>
+      <select style={{ ...INP, width:"auto" }} value={filter} onChange={e=>setFilter(e.target.value)}>
+        <option value="pending">Pending</option>
+        <option value="reviewed">Reviewed</option>
+        <option value="dismissed">Dismissed</option>
+        <option value="action_taken">Action Taken</option>
+        <option value="all">All</option>
+      </select>
+      {reports.length===0 && <div style={{ color:"#64748b", padding:20, textAlign:"center" }}>No reports.</div>}
+      {reports.map(r => (
+        <div key={r.id} style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:12, padding:14, marginBottom:10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+            <span style={{ color:"#e2e8f0", fontWeight:700, fontSize:13 }}>Report on {profiles[r.reported_user_id]?.username||"Unknown"}</span>
+            <span style={{ color:"#64748b", fontSize:11 }}>{new Date(r.created_at).toLocaleString()}</span>
+          </div>
+          <div style={{ color:"#94a3b8", fontSize:13, marginBottom:8 }}>{r.reason}</div>
+          <div style={{ color:"#64748b", fontSize:11, marginBottom:8 }}>By: {profiles[r.reporter_id]?.username||"Unknown"} · Status: <b>{r.status}</b></div>
+          {r.status==="pending" && (
+            <div style={{ display:"flex", gap:8 }}>
+              <button style={BTN} onClick={()=>updateStatus(r,"action_taken")}>Mark Action Taken</button>
+              <button style={BTN_GHOST} onClick={()=>updateStatus(r,"dismissed")}>Dismiss</button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LogTab({ token, profiles }) {
+  const [logs, setLogs] = useState([]);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    try {
+      const data = await sbFetch(`/moderation_logs?order=created_at.desc&limit=200`, { headers:{ Authorization:`Bearer ${token}` } }, token);
+      setLogs(data);
+    } catch {}
+  }
+
+  return (
+    <div style={{ background:"#111827", border:"1px solid #1e2d3d", borderRadius:14, overflow:"auto", maxHeight:600 }}>
+      <table>
+        <thead><tr><th>Moderator</th><th>Action</th><th>Target</th><th>Reason</th><th>Time</th></tr></thead>
+        <tbody>
+          {logs.map(l => (
+            <tr key={l.id}>
+              <td>{profiles[l.moderator_id]?.username||"—"}</td>
+              <td><span style={{ color:"#a89eff" }}>{l.action}</span></td>
+              <td>{profiles[l.target_user_id]?.username||"—"}</td>
+              <td style={{ maxWidth:240, overflow:"hidden", textOverflow:"ellipsis" }}>{l.reason}</td>
+              <td style={{ whiteSpace:"nowrap", color:"#64748b", fontSize:12 }}>{new Date(l.created_at).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {logs.length===0 && <div style={{ color:"#64748b", padding:20, textAlign:"center" }}>No moderation actions yet.</div>}
+    </div>
+  );
+}
+
+function App() {
+  const [session, setSession] = useState(null);
+  const [adminProfile, setAdminProfile] = useState(null);
+  const [tab, setTab] = useState("overview");
+  const [profiles, setProfiles] = useState({});
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    if (!session) return;
+    sbFetch(`/profiles?select=id,username,avatar_color,role`, { headers:{ Authorization:`Bearer ${session.access_token}` } }, session.access_token)
+      .then(data => { const map = {}; data.forEach(p => map[p.id]=p); setProfiles(map); });
+  }, [session, refreshKey]);
+
+  if (!session) return <AdminLogin onLogin={(s,p)=>{ setSession(s); setAdminProfile(p); }} />;
+
+  const tabs = [
+    { id:"overview", label:"📊 Overview" },
+    { id:"users", label:"👥 Users" },
+    { id:"messages", label:"💬 Messages" },
+    { id:"dms", label:"🔒 DMs" },
+    { id:"reports", label:"🚩 Reports" },
+    { id:"logs", label:"📜 Mod Log" },
+  ];
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#0d1520", padding:16 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20, flexWrap:"wrap", gap:10 }}>
+        <div>
+          <h1 style={{ color:"#e2e8f0", fontSize:20, fontWeight:800 }}>🛠️ CampusHub Admin</h1>
+          <div style={{ color:"#64748b", fontSize:12 }}>Logged in as {adminProfile.username} ({adminProfile.role})</div>
+        </div>
+        <button style={BTN_GHOST} onClick={()=>{ setSession(null); setAdminProfile(null); }}>Log out</button>
+      </div>
+
+      <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" }}>
+        {tabs.map(t => (
+          <button key={t.id} style={{ ...BTN, background:tab===t.id?"#6C63FF":"#1e2a3a", color:tab===t.id?"#fff":"#94a3b8" }}
+            onClick={()=>setTab(t.id)}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab==="overview" && <OverviewTab token={session.access_token} key={refreshKey} />}
+      {tab==="users" && <UsersTab token={session.access_token} myId={session.user.id} onAction={()=>setRefreshKey(k=>k+1)} />}
+      {tab==="messages" && <MessagesTab token={session.access_token} myId={session.user.id} onAction={()=>setRefreshKey(k=>k+1)} />}
+      {tab==="dms" && <DmsTab token={session.access_token} myId={session.user.id} onAction={()=>setRefreshKey(k=>k+1)} />}
+      {tab==="reports" && <ReportsTab token={session.access_token} myId={session.user.id} profiles={profiles} onAction={()=>setRefreshKey(k=>k+1)} />}
+      {tab==="logs" && <LogTab token={session.access_token} profiles={profiles} />}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
