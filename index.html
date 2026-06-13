@@ -68,6 +68,18 @@ async function sbFetch(path, options = {}, token) {
   const text = await res.text();
   return text ? JSON.parse(text) : [];
 }
+  // —— Global Search Helper
+async function searchAll(query, token) {
+  const q = encodeURIComponent(query.trim());
+  const [messages, users] = await Promise.all([
+    sbFetch(`/rest/v1/messages?content=ilike.*${q}*&limit=5&order=created_at.desc&select=id,content,created_at,user_id,room_id`, {}, token),
+    sbFetch(`/rest/v1/profiles?username=ilike.*${q}*&limit=5&select=id,username,avatar_url,department`, {}, token),
+  ]);
+  return {
+    messages: Array.isArray(messages) ? messages : [],
+    users: Array.isArray(users) ? users : [],
+  };
+}
 
 async function signUp(email, password) {
   const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
