@@ -669,7 +669,39 @@ function App() {
   const lastSeenRef = useRef({});
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
-
+useEffect(() => {
+    if (!session) return;
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+    async function checkNotifications() {
+      try {
+        const data = await sbFetch(
+          `/notifications?user_id=eq.${session.user.id}&read=eq.false&order=created_at.desc&limit=10`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } },
+          session.access_token
+        );
+        for (const notif of data) {
+          if (Notification.permission === "granted") {
+            const n = new Notification(notif.title, {
+              body: notif.body || "",
+              icon: "/favicon.ico",
+              tag: notif.id,
+            });
+            n.onclick = () => { window.focus(); };
+          }
+          await sbFetch(
+            `/notifications?id=eq.${notif.id}`,
+            { method: "PATCH", headers: { Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ read: true }) },
+            session.access_token
+          );
+        }
+      } catch {}
+    }
+    checkNotifications();
+    const interval = setInterval(checkNotifications, 10000);
+    return () => clearInterval(interval);
+  }, [session]);
   useEffect(() => {
     if (!session) return;
     loadMessages();
