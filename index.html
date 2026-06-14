@@ -640,7 +640,7 @@ function App(){
 
   useEffect(()=>{
     if(!session)return;
-    loadMessages();loadAllProfiles();
+    loadMessages();loadAllProfiles();loadPinned();
     clearInterval(pollRef.current);
     pollRef.current=setInterval(()=>{loadMessages();loadPresence();},3000);
     return()=>clearInterval(pollRef.current);
