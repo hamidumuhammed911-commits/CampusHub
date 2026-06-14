@@ -653,7 +653,31 @@ function App(){
       setMessages(Array.isArray(data)?data:[]);
     }catch{}
   }
-  async function loadAllProfiles(){
+  async function loadPinned(){
+    if(!session)return;
+    try{
+      const pins=await sbFetch(`/pinned_messages?room=eq.${room}&order=pinned_at.desc`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      if(!Array.isArray(pins)||pins.length===0){setPinned([]);return;}
+      const ids=pins.map(p=>p.message_id).join(",");
+      const msgs=await sbFetch(`/messages?id=in.(${ids})`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      const order=pins.map(p=>p.message_id);
+      const sorted=Array.isArray(msgs)?msgs.sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id)):[];
+      setPinned(sorted);
+    }catch{setPinned([]);}
+  }
+  async function pinMessage(msg){
+    try{
+      await sbFetch("/pinned_messages",{method:"POST",headers:{Authorization:`Bearer ${session.access_token}`,Prefer:"resolution=merge-duplicates"},body:JSON.stringify({message_id:msg.id,room,pinned_by:session.user.id})},session.access_token);
+      setMsgMenuId(null);loadPinned();
+    }catch(e){console.error("Pin failed:",e);}
+  }
+  async function unpinMessage(messageId){
+    try{
+      await sbFetch(`/pinned_messages?message_id=eq.${messageId}&room=eq.${room}`,{method:"DELETE",headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      loadPinned();
+    }catch(e){console.error("Unpin failed:",e);}
+    }
+        async function loadAllProfiles(){
     try{const d=await sbFetch(`/profiles?select=id,username,avatar_url,avatar_color,department,university,level,phone,student_id,role`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);if(Array.isArray(d)){const m={};d.forEach(p=>{m[p.id]=p;});setProfiles(m);}}catch{}
   }
   async function loadPresence(){
