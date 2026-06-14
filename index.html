@@ -1136,3 +1136,18 @@ function LoginScreen({onLogin}){
           {loading?"...":(mode==="login"?"Sign In →":"Create Account →")}
         </button>
  
+       <button style={{background:"none",border:"none",color:"#9d8fff",fontSize:13,cursor:"pointer",width:"100%",marginTop:14,textAlign:"center",fontFamily:"'Space Grotesk',sans-serif"}}
+          onClick={()=>{setMode(mode==="login"?"signup":"login");setErr("");}}>
+          {mode==="login"?"Don't have an account? Sign up":"Already have an account? Sign in"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<script>eruda.init();</script>
+</body>
+</html>
