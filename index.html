@@ -383,3 +383,79 @@ function ConversationList({conversations,profiles,myId,onlineUsers,onSelect}){
         const p=profiles[otherId]||{username:"Unknown"};
         const isOnline=!!onlineUsers[otherId];
         return(
+<button key={conv.id} onClick={()=>onSelect(conv,otherId)}
+            style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",background:"none",border:"none",borderBottom:"1px solid #22304f",cursor:"pointer",textAlign:"left",width:"100%",transition:"background 0.1s"}}
+            onMouseOver={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
+            onMouseOut={e=>e.currentTarget.style.background="none"}>
+            <Avatar name={p.username} color={p.avatar_color} url={p.avatar_url} size={44} online={isOnline}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{color:"#f4f6ff",fontWeight:700,fontSize:14}}>{p.username}</div>
+              <div style={{color:isOnline?"#22c55e":"#5f7099",fontSize:12,marginTop:2}}>{isOnline?"● Online":"● Offline"}</div>
+            </div>
+            <span style={{color:"#5f7099",fontSize:18}}>›</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function isOwnMsg(msg,myId){return msg.sender_id===myId;}
+
+// ── DmChatView ────────────────────────────────────────────────────────────────
+function DmChatView({conversation,otherProfile,session,onBack,onlineUsers}){
+  const [messages,setMessages]=useState([]);
+  const [input,setInput]=useState("");  const [sending,setSending]=useState(false);
+  const [replyTo,setReplyTo]=useState(null);
+  const [uploadingImg,setUploadingImg]=useState(false);
+  const [otherTyping,setOtherTyping]=useState(false);
+  const [lightbox,setLightbox]=useState(null);
+  const [msgMenuId,setMsgMenuId]=useState(null);
+  const [editingDmId,setEditingDmId]=useState(null);
+  const [editingDmContent,setEditingDmContent]=useState("");
+  const bottomRef=useRef(null);
+  const pollRef=useRef(null);
+  const typingRef=useRef(null);
+  const imgRef=useRef();
+  const myId=session.user.id;
+  const token=session.access_token;
+  const isOnline=!!onlineUsers[otherProfile.id];
+
+  async function sendVoiceDm(voiceUrl, duration){
+    setSending(true);
+    try{await sendDirectMessage(conversation.id,myId,null,null,voiceUrl,"voice",token);await load();}catch{}
+    setSending(false);
+  }
+  const dmVoice=useVoiceRecorder(sendVoiceDm);
+
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
+  useEffect(()=>{
+    load(); markDmRead(conversation.id,myId,token);
+    clearInterval(pollRef.current);
+    pollRef.current=setInterval(()=>{load();markDmRead(conversation.id,myId,token);loadDmTypers(conversation.id,myId,token).then(setOtherTyping);},3000);
+    return()=>clearInterval(pollRef.current);
+  },[conversation.id]);
+
+  async function load(){const d=await loadDirectMessages(conversation.id,token);setMessages(d);}
+  function handleInputChange(e){setInput(e.target.value);clearTimeout(typingRef.current);broadcastDmTyping(conversation.id,myId,token);typingRef.current=setTimeout(()=>{},4000);}
+  async function send(mediaUrl=null,mediaType=null){
+    if(!mediaUrl&&!input.trim())return;
+    setSending(true);
+    try{await sendDirectMessage(conversation.id,myId,mediaUrl?null:input.trim(),replyTo?.id||null,mediaUrl,mediaType,token);setInput("");setReplyTo(null);await load();}catch{}
+    setSending(false);
+  }
+  async function handleImageSend(e){
+    const file=e.target.files[0];if(!file)return;
+    setUploadingImg(true);
+    try{const url=await uploadToCloudinary(file);await send(url,"image");}catch{alert("Image upload failed.");}
+    setUploadingImg(false);e.target.value="";
+  }
+  async function editMessage(msgId,newContent){
+    try{await sbFetch(`/direct_messages?id=eq.${msgId}`,{method:"PATCH",headers:{Authorization:`Bearer ${token}`},body:JSON.stringify({content:newContent,edited_at:new Date().toISOString()})},token);await load();}catch{}
+  }
+  async function deleteDm(msgId){
+    try{await sbFetch(`/direct_messages?id=eq.${msgId}`,{method:"DELETE",headers:{Authorization:`Bearer ${token}`}},token);setMsgMenuId(null);await load();}catch{}
+  }
+
+  const grouped=[];let lastDate=null;
+  messages.forEach(msg=>{const d=dateStr(msg.created_at);if(d!==lastDate){grouped.push({type:"divider",label:d});lastDate=d;}grouped.push({type:"msg",msg});});
