@@ -586,7 +586,7 @@ function GlobalSearch({session,profile,profiles,onClose,onOpenDm,onSwitchRoom}){
     try{
       if(tab==="messages"){
         const joinFilter=profile?.created_at?`&created_at=gte.${encodeURIComponent(profile.created_at)}`:"";
-        const d=await sbFetch(`/messages?content=ilike.*${encodeURIComponent(q)}*&private=eq.false${joinFilter}&limit=20&order=created_at.desc&select=id,content,created_at,username,room,image_url`,{},session.access_token);
+        const d=await sbFetch(`/messages?content=ilike.*${encodeURIComponent(q)}*${joinFilter}&limit=20&order=created_at.desc&select=id,content,created_at,username,room,image_url`,{},session.access_token);
         setResults(Array.isArray(d)?d:[]);
       } else if(tab==="users"){
         const d=await sbFetch(`/profiles?username=ilike.*${encodeURIComponent(q)}*&limit=15&select=id,username,avatar_url,avatar_color,department,university,level`,{},session.access_token);
