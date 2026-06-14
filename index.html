@@ -422,4 +422,294 @@ function DmChatView({conversation,otherProfile,session,onBack,onlineUsers}){
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%"}} onClick={()=>{if(msgMenuId)setMsgMenuId(null);}}>
       {lightbox&&<Lightbox url={lightbox} onClose={()=>setLightbox(null)}/>}
-      <div style={{padding:"12px 
+      <div style={{padding:"12px 16px",borderBottom:"1px solid #1e2d45",background:"rgba(13,18,32,0.9)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+        <button style={{background:"rgba(255,255,255,0.05)",border:"1px solid #1e2d45",borderRadius:10,color:"#94a3b8",fontSize:16,cursor:"pointer",width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onBack}>←</button>
+        <Avatar name={otherProfile.username} color={otherProfile.avatar_color} url={otherProfile.avatar_url} size={36} online={isOnline}/>
+        <div style={{flex:1}}>
+          <div style={{color:"#f0f4ff",fontWeight:700,fontSize:14}}>{otherProfile.username}</div>
+          <div style={{color:isOnline?"#22c55e":"#475569",fontSize:11}}>{isOnline?"● Online":"● Offline"}</div>
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:16,display:"flex",flexDirection:"column",gap:2}}>
+        {messages.length===0&&<div style={{color:"#475569",textAlign:"center",marginTop:60}}>
+          <div style={{fontSize:36,marginBottom:10}}>👋</div>
+          <div style={{fontSize:14,color:"#94a3b8"}}>No messages yet — say hello!</div>
+        </div>}
+        {grouped.map((item,idx)=>{
+          if(item.type==="divider")return<DateDivider key={`d-${idx}`} label={item.label}/>;
+          const{msg}=item;
+          const isOwn=msg.sender_id===myId;
+          const showMenu=msgMenuId===msg.id;
+          const isRead=isOwn&&!!msg.read_at;
+          return(
+            <div key={msg.id} className="msg-bubble" style={{display:"flex",alignItems:"flex-start",gap:10,flexDirection:isOwn?"row-reverse":"row",marginBottom:2,position:"relative"}}>
+              <div style={{maxWidth:"72%",display:"flex",flexDirection:"column",alignItems:isOwn?"flex-end":"flex-start"}}>
+                {msg.reply_to&&(
+                  <div style={{background:"rgba(108,99,255,0.08)",borderLeft:"3px solid #6C63FF",borderRadius:"0 8px 8px 0",padding:"4px 10px",marginBottom:4,maxWidth:"100%"}}>
+                    <div style={{color:"#a89eff",fontSize:10,fontWeight:700}}>↩ Reply</div>
+                  </div>
+                )}
+                <div onContextMenu={e=>{e.preventDefault();setMsgMenuId(msg.id);}}
+                  onTouchStart={()=>{const t=setTimeout(()=>setMsgMenuId(msg.id),600);return()=>clearTimeout(t);}}
+                  style={{padding:msg.media_url?"4px":"9px 13px",color:"#f0f4ff",fontSize:14,lineHeight:1.5,wordBreak:"break-word",
+                    background:isOwn?"linear-gradient(135deg,#6C63FF,#5b54e8)":"rgba(255,255,255,0.06)",
+                    border:isOwn?"none":"1px solid #1e2d45",
+                    borderRadius:isOwn?"18px 18px 4px 18px":"18px 18px 18px 4px",cursor:"default"}}>
+                  {msg.media_url&&msg.media_type==="image"&&<img src={msg.media_url} className="img-msg" onClick={()=>setLightbox(msg.media_url)} alt="shared"/>}
+                  {msg.content&&<span>{msg.content}</span>}
+                </div>
+                <span style={{color:"#475569",fontSize:10,marginTop:3,display:"flex",gap:4,alignItems:"center"}}>
+                  {timeStr(msg.created_at)}
+                  {msg.edited_at&&<span style={{fontStyle:"italic"}}>(edited)</span>}
+                  {isOwn&&<span style={{color:isRead?"#4FC3F7":"#475569"}}>{isRead?"✓✓":"✓"}</span>}
+                </span>
+              </div>
+              {showMenu&&(
+                <div style={{position:"absolute",[isOwn?"right":"left"]:0,top:0,background:"#111827",border:"1px solid #1e2d45",borderRadius:12,padding:6,zIndex:40,minWidth:130,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
+                  <button style={{display:"block",width:"100%",background:"none",border:"none",color:"#f0f4ff",fontSize:13,padding:"7px 12px",cursor:"pointer",textAlign:"left",borderRadius:8}} onClick={()=>{setReplyTo(msg);setMsgMenuId(null);}}>↩ Reply</button>
+                  {isOwn&&msg.media_type!=="image"&&<button style={{display:"block",width:"100%",background:"none",border:"none",color:"#f0f4ff",fontSize:13,padding:"7px 12px",cursor:"pointer",textAlign:"left",borderRadius:8}} onClick={()=>{const nc=prompt("Edit message:",msg.content);if(nc!=null)editMessage(msg.id,nc);setMsgMenuId(null);}}>✏ Edit</button>}
+                  {isOwn&&<button style={{display:"block",width:"100%",background:"none",border:"none",color:"#f87171",fontSize:13,padding:"7px 12px",cursor:"pointer",textAlign:"left",borderRadius:8}} onClick={()=>deleteDm(msg.id)}>🗑 Delete</button>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <div ref={bottomRef}/>
+      </div>
+      {otherTyping&&<div style={{color:"#64748b",fontSize:12,padding:"0 16px 6px",display:"flex",alignItems:"center",gap:6}}>
+        <span style={{display:"inline-flex",gap:3}}>{[0,1,2].map(i=><span key={i} style={{width:5,height:5,borderRadius:"50%",background:"#475569",display:"inline-block",animation:`bounce ${0.8+i*0.15}s ${i*0.15}s infinite`}}/>)}</span>
+        <span>{otherProfile.username} is typing…</span>
+      </div>}
+      {/* DM Composer */}
+      <div style={{padding:"10px 12px 14px",borderTop:"1px solid #1e2d45",background:"rgba(13,18,32,0.9)",flexShrink:0}}>
+        <ReplyPreview msg={replyTo?{username:isOwnMsg(replyTo,myId)?"You":otherProfile.username,content:replyTo.content,image_url:replyTo.media_url}:null} onCancel={()=>setReplyTo(null)}/>
+        <div style={{display:"flex",gap:8,alignItems:"center",background:"rgba(255,255,255,0.04)",border:"1px solid #1e2d45",borderRadius:16,padding:"6px 6px 6px 12px"}}>
+          <button style={{background:"none",border:"none",color:"#64748b",fontSize:20,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32}} onClick={()=>imgRef.current.click()} disabled={uploadingImg}>{uploadingImg?"⏳":"📎"}</button>
+          <input ref={imgRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImageSend}/>
+          <input style={{flex:1,background:"none",border:"none",outline:"none",color:"#f0f4ff",fontSize:14,fontFamily:"'Space Grotesk',sans-serif"}}
+            placeholder={`Message ${otherProfile.username}...`} value={input}
+            onChange={handleInputChange}
+            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}/>
+          <button style={{width:36,height:36,borderRadius:11,background:"linear-gradient(135deg,#6C63FF,#4FC3F7)",border:"none",color:"#fff",fontSize:16,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:(input.trim()||uploadingImg)&&!sending?1:0.35,transition:"all 0.15s",boxShadow:(input.trim()||uploadingImg)&&!sending?"0 2px 12px rgba(108,99,255,0.4)":"none"}}
+            onClick={()=>send()} disabled={(!input.trim()&&!uploadingImg)||sending}>↑</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── GlobalSearch ──────────────────────────────────────────────────────────────
+function GlobalSearch({session,profiles,onClose,onOpenDm,onSwitchRoom}){
+  const [query,setQuery]=useState("");
+  const [tab,setTab]=useState("messages");
+  const [results,setResults]=useState([]);
+  const [loading,setLoading]=useState(false);
+  const inputRef=useRef();
+  const debounceRef=useRef();
+
+  useEffect(()=>{inputRef.current?.focus();},[]);
+  useEffect(()=>{
+    clearTimeout(debounceRef.current);
+    if(!query.trim()){setResults([]);return;}
+    debounceRef.current=setTimeout(()=>runSearch(query.trim()),350);
+  },[query,tab]);
+
+  async function runSearch(q){
+    setLoading(true);
+    try{
+      if(tab==="messages"){
+        const d=await sbFetch(`/messages?content=ilike.*${encodeURIComponent(q)}*&limit=20&order=created_at.desc&select=id,content,created_at,username,room,image_url`,{},session.access_token);
+        setResults(Array.isArray(d)?d:[]);
+      } else if(tab==="users"){
+        const d=await sbFetch(`/profiles?username=ilike.*${encodeURIComponent(q)}*&limit=15&select=id,username,avatar_url,avatar_color,department,university,level`,{},session.access_token);
+        setResults(Array.isArray(d)?d:[]);
+      } else {
+        setResults(ROOMS.filter(r=>r.label.includes(q.toLowerCase())||r.id.includes(q.toLowerCase())));
+      }
+    }catch{setResults([]);}
+    setLoading(false);
+  }
+
+  function highlight(text,q){
+    if(!text||!q)return text;
+    const parts=text.split(new RegExp(`(${q})`, "gi"));
+    return parts.map((p,i)=>p.toLowerCase()===q.toLowerCase()?<mark key={i} style={{background:"rgba(108,99,255,0.3)",color:"#c4b5fd",borderRadius:3,padding:"0 2px"}}>{p}</mark>:p);
+  }
+
+  const TABS=[{id:"messages",label:"💬 Messages"},{id:"users",label:"👤 People"},{id:"rooms",label:"# Rooms"}];
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"16px 16px 0"}} onClick={onClose}>
+      <div style={{background:"#0d1220",border:"1px solid #1e2d45",borderRadius:20,width:"100%",maxWidth:540,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden",animation:"slideUp 0.2s ease"}} onClick={e=>e.stopPropagation()}>
+        <div style={{padding:"14px 14px 0"}}>
+          <div style={{display:"flex",gap:10,alignItems:"center",background:"rgba(255,255,255,0.05)",border:"1px solid #1e2d45",borderRadius:12,padding:"10px 14px",marginBottom:12}}>
+            <span style={{fontSize:16}}>🔍</span>
+            <input ref={inputRef} style={{flex:1,background:"none",border:"none",outline:"none",color:"#f0f4ff",fontSize:15,fontFamily:"'Space Grotesk',sans-serif"}} placeholder="Search CampusHub…" value={query} onChange={e=>setQuery(e.target.value)}/>
+            <button onClick={onClose} style={{background:"none",border:"none",color:"#64748b",fontSize:20,cursor:"pointer",lineHeight:1}}>✕</button>
+          </div>
+          <div style={{display:"flex",borderBottom:"1px solid #1e2d45"}}>
+            {TABS.map(t=>(
+              <button key={t.id} onClick={()=>{setTab(t.id);setResults([]);if(query.trim())runSearch(query.trim());}}
+                style={{flex:1,padding:"10px 0",border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:"transparent",color:tab===t.id?"#a89eff":"#475569",borderBottom:tab===t.id?"2px solid #6C63FF":"2px solid transparent",fontFamily:"'Space Grotesk',sans-serif"}}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{flex:1,overflowY:"auto"}}>
+          {!query.trim()&&<div style={{color:"#475569",textAlign:"center",padding:"40px 16px",fontSize:13}}>Start typing to search across CampusHub</div>}
+          {loading&&<div style={{color:"#475569",textAlign:"center",padding:"30px 16px",fontSize:13}}>Searching…</div>}
+          {!loading&&query.trim()&&results.length===0&&<div style={{color:"#475569",textAlign:"center",padding:"40px 16px",fontSize:13}}>No results for "{query}"</div>}
+          {tab==="messages"&&results.map(msg=>{
+            const rm=ROOMS.find(r=>r.id===msg.room);
+            return(<button key={msg.id} onClick={()=>{onSwitchRoom(msg.room);onClose();}}
+              style={{display:"block",width:"100%",textAlign:"left",padding:"12px 16px",background:"none",border:"none",borderBottom:"1px solid #1e2d45",cursor:"pointer"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                <span style={{color:"#6C63FF",fontSize:11,fontWeight:700}}>{rm?`${rm.emoji} #${rm.label}`:msg.room}</span>
+                <span style={{color:"#475569",fontSize:10,marginLeft:"auto"}}>{timeStr(msg.created_at)}</span>
+              </div>
+              <div style={{color:"#94a3b8",fontSize:12,fontWeight:700,marginBottom:2}}>{msg.username}</div>
+              <div style={{color:"#cbd5e1",fontSize:13,lineHeight:1.4,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>
+                {msg.image_url?"📷 Photo":highlight(msg.content,query)}
+              </div>
+            </button>);
+          })}
+          {tab==="users"&&results.map(p=>(
+            <button key={p.id} onClick={()=>{if(p.id!==session.user.id)onOpenDm(p.id);onClose();}}
+              style={{display:"flex",alignItems:"center",gap:12,width:"100%",textAlign:"left",padding:"12px 16px",background:"none",border:"none",borderBottom:"1px solid #1e2d45",cursor:"pointer"}}>
+              <Avatar name={p.username} color={p.avatar_color} url={p.avatar_url} size={40}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{color:"#f0f4ff",fontWeight:700,fontSize:13}}>{highlight(p.username,query)}</div>
+                {p.department&&<div style={{color:"#64748b",fontSize:11}}>{highlight(p.department,query)}</div>}
+              </div>
+              {p.id!==session.user.id&&<span style={{color:"#475569",fontSize:11}}>DM →</span>}
+            </button>
+          ))}
+          {tab==="rooms"&&results.map(room=>(
+            <button key={room.id} onClick={()=>{onSwitchRoom(room.id);onClose();}}
+              style={{display:"flex",alignItems:"center",gap:14,width:"100%",textAlign:"left",padding:"14px 16px",background:"none",border:"none",borderBottom:"1px solid #1e2d45",cursor:"pointer"}}>
+              <span style={{fontSize:28}}>{room.emoji}</span>
+              <div>
+                <div style={{color:"#f0f4ff",fontWeight:700,fontSize:14}}>#{highlight(room.label,query)}</div>
+                <div style={{color:"#475569",fontSize:11}}>Tap to open room</div>
+              </div>
+              <span style={{color:"#475569",fontSize:11,marginLeft:"auto"}}>→</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
+function App(){
+  const [session,setSession]=useState(null);
+  const [profile,setProfile]=useState(null);
+  const [profiles,setProfiles]=useState({});
+  const [messages,setMessages]=useState([]);
+  const [input,setInput]=useState("");
+  const [room,setRoom]=useState("general");
+  const [view,setView]=useState("chat");
+  const [conversations,setConversations]=useState([]);
+  const [currentConv,setCurrentConv]=useState(null);
+  const [currentDmUser,setCurrentDmUser]=useState(null);
+  const [onlineUsers,setOnlineUsers]=useState({});
+  const [viewProfile,setViewProfile]=useState(null);
+  const [lightbox,setLightbox]=useState(null);
+  const [replyTo,setReplyTo]=useState(null);
+  const [msgMenuId,setMsgMenuId]=useState(null);
+  const [showSearch,setShowSearch]=useState(false);
+  const [uploadingImg,setUploadingImg]=useState(false);
+  const bottomRef=useRef(null);
+  const pollRef=useRef(null);
+  const inputRef=useRef(null);
+  const imgRef=useRef(null);
+
+  useEffect(()=>{
+    const s=localStorage.getItem("ch_session");
+    if(s){const p=JSON.parse(s);setSession(p);loadProfile(p);}
+  },[]);
+
+  async function loadProfile(sess){
+    try{const d=await sbFetch(`/profiles?id=eq.${sess.user.id}`,{headers:{Authorization:`Bearer ${sess.access_token}`}},sess.access_token);if(d[0])setProfile(d[0]);}catch{}
+  }
+  async function handleLogin(sess){localStorage.setItem("ch_session",JSON.stringify(sess));setSession(sess);await loadProfile(sess);}
+  function handleLogout(){localStorage.removeItem("ch_session");setSession(null);setProfile(null);setMessages([]);setConversations([]);}
+
+  useEffect(()=>{
+    if(!session)return;
+    loadMessages();loadAllProfiles();
+    clearInterval(pollRef.current);
+    pollRef.current=setInterval(()=>{loadMessages();loadPresence();},3000);
+    return()=>clearInterval(pollRef.current);
+  },[session,room]);
+
+  async function loadMessages(){
+    if(!session)return;
+    try{
+      const data=await sbFetch(`/messages?room=eq.${room}&private=eq.false&order=created_at.asc&limit=100`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      setMessages(Array.isArray(data)?data:[]);
+    }catch{}
+  }
+  async function loadAllProfiles(){
+    try{const d=await sbFetch(`/profiles?select=id,username,avatar_url,avatar_color,department,university,level,phone,student_id,role`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);if(Array.isArray(d)){const m={};d.forEach(p=>{m[p.id]=p;});setProfiles(m);}}catch{}
+  }
+  async function loadPresence(){
+    try{const cutoff=new Date(Date.now()-60000).toISOString();const d=await sbFetch(`/profiles?last_seen=gte.${cutoff}&select=id`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);if(Array.isArray(d)){const m={};d.forEach(p=>{m[p.id]=true;});setOnlineUsers(m);}}catch{}
+  }
+  async function openDmWith(userId){
+    const conv=await getOrCreateConversation(session.user.id,userId,session.access_token);
+    setCurrentConv(conv);setCurrentDmUser(userId);setView("dm");
+  }
+  useEffect(()=>{if(!session||view!=="dms")return;loadConversations(session.user.id,session.access_token).then(setConversations);},[view,session]);
+
+  async function sendMsg(mediaUrl=null,mediaType=null){
+    if(!mediaUrl&&!input.trim())return;
+    const body={
+      room,
+      user_id:session.user.id,
+      username:profile?.username||"User",
+      avatar_color:profile?.avatar_color||"#6C63FF",
+      content:mediaUrl?null:input.trim(),
+      image_url:mediaUrl||null,
+      private:false,
+      event:"message",
+      topic:"room",
+      reply_to:replyTo?.id||null,
+    };
+    try{
+      await sbFetch("/messages",{method:"POST",headers:{Authorization:`Bearer ${session.access_token}`},body:JSON.stringify(body)},session.access_token);
+      setInput("");setReplyTo(null);await loadMessages();
+      setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),100);
+    }catch(e){console.error("Send failed:",e);}
+  }
+
+  async function handleImageUpload(e){
+    const file=e.target.files[0];if(!file)return;
+    setUploadingImg(true);
+    try{const url=await uploadToCloudinary(file);await sendMsg(url,"image");}catch{alert("Image upload failed.");}
+    setUploadingImg(false);e.target.value="";
+  }
+
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
+
+  if(!session||!profile)return<LoginScreen onLogin={handleLogin}/>;
+  const myProfile=profile;
+  const currentRoom=ROOMS.find(r=>r.id===room)||{emoji:"💬",label:room};
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100dvh",background:"var(--bg)",color:"var(--text)",fontFamily:"'Space Grotesk',sans-serif",maxWidth:640,margin:"0 auto",position:"relative",zIndex:1}} onClick={()=>{if(msgMenuId)setMsgMenuId(null);}}>
+      {lightbox&&<Lightbox url={lightbox} onClose={()=>setLightbox(null)}/>}
+      {viewProfile&&<ProfileCard p={viewProfile} onClose={()=>setViewProfile(null)} isOwn={viewProfile.id===session.user.id} onEdit={()=>{setViewProfile(null);setView("editProfile");}} online={!!onlineUsers[viewProfile.id]} onMessage={uid=>{setViewProfile(null);openDmWith(uid);}}/>}
+      {showSearch&&<GlobalSearch session={session} profiles={profiles} onClose={()=>setShowSearch(false)} onOpenDm={uid=>{openDmWith(uid);}} onSwitchRoom={r=>{setRoom(r);setView("chat");}}/>}
+      {view==="editProfile"&&<EditProfile profile={myProfile} session={session} onSave={p=>{setProfile(p);setView("profile");}} onClose={()=>setView("profile")}/>}
+
+      {/* Header */}
+      <div style={{padding:"0 16px",height:56,background:"rgba(13,18,32,0.95)",backdropFilter:"blur(12px)",borderBottom:"1px solid #1e2d45",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+        <div style={{flex:1,fontWeight:800,fontSize:16}}>
+          {view==="chat"&&<span style={{color:"#f0f4ff"}}><span style={{color:"#6C63FF",marginRight:6}}>{currentRoom.emoji}</span>#{currentRoom.label}</span>}
+          {view==="dms"&&<span style={{color:"#f0f4ff"}}>💬 Messages</span>}
+          {view==="dm"&&<span style={{color:"#f0f4ff"}}>← Direct Message</span>}
+          {view==="profile"&&<span style={{color:"#f0f4ff"}}>👤 Profile</span>}
+          
