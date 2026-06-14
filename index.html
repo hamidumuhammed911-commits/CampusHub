@@ -1044,3 +1044,107 @@ function App(){
                 </button>
                 <button onClick={()=>sendMsg()}
                   style={{width:36,height:36,borderRadius:12,background:"linear-gradient(135deg,#7C5CFF,#22D3C4)",border:"none",color:"#fff",fontSize:16,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:input.trim()||uploadingImg?1:0.35,transition:"all 0.15s",boxShadow:input.trim()?"0 2px 14px rgba(124,92,255,0.45)":"none"}}
+disabled={!input.trim()&&!uploadingImg}>↑</button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {view==="dms"&&(
+          <div style={{flex:1,overflowY:"auto"}}>
+            <div style={{padding:"14px 16px 8px",borderBottom:"1px solid #22304f"}}>
+              <div style={{color:"#9aabd1",fontSize:11,fontWeight:700,letterSpacing:"1px",textTransform:"uppercase"}}>Direct Messages</div>
+            </div>
+            <ConversationList conversations={conversations} profiles={profiles} myId={session.user.id} onlineUsers={onlineUsers}
+              onSelect={(conv,otherId)=>{setCurrentConv(conv);setCurrentDmUser(otherId);setView("dm");}}/>
+          </div>
+        )}
+
+        {view==="dm"&&currentConv&&(
+          <DmChatView conversation={currentConv} otherProfile={profiles[currentDmUser]||{id:currentDmUser,username:"User"}}
+            session={session} onBack={()=>setView("dms")} onlineUsers={onlineUsers}/>
+        )}
+
+        {view==="profile"&&(
+          <div style={{flex:1,overflowY:"auto",padding:20}}>
+            <div style={{textAlign:"center",marginBottom:20}}>
+              <Avatar name={myProfile.username} color={myProfile.avatar_color} url={myProfile.avatar_url} size={80} online={true}/>
+            </div>
+            <h2 style={{textAlign:"center",fontSize:22,fontWeight:800,color:"#f4f6ff",marginBottom:4}}>{myProfile.username}</h2>
+            <div style={{textAlign:"center",color:"#b4a5ff",fontSize:13,marginBottom:20}}>{myProfile.student_id}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
+              {myProfile.university&&myProfile.university!=="Not specified"&&<div style={{background:"rgba(255,255,255,0.04)",border:"1px solid #22304f",borderRadius:12,padding:"12px 16px",color:"#9aabd1",fontSize:14}}>🏫 {myProfile.university}</div>}
+              {myProfile.department&&<div style={{background:"rgba(255,255,255,0.04)",border:"1px solid #22304f",borderRadius:12,padding:"12px 16px",color:"#9aabd1",fontSize:14}}>📚 {myProfile.department}</div>}
+              {myProfile.level&&<div style={{background:"rgba(255,255,255,0.04)",border:"1px solid #22304f",borderRadius:12,padding:"12px 16px",color:"#9aabd1",fontSize:14}}>🎓 {myProfile.level}</div>}
+              {myProfile.role&&<div style={{background:"rgba(108,99,255,0.08)",border:"1px solid rgba(108,99,255,0.2)",borderRadius:12,padding:"12px 16px",color:"#b4a5ff",fontSize:14}}>🛡 {myProfile.role}</div>}
+            </div>
+            <button style={BTN} onClick={()=>setView("editProfile")}>✏️ Edit Profile</button>
+            <button style={{...BTN,marginTop:10,background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",color:"#f87171"}} onClick={handleLogout}>🚪 Sign Out</button>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Nav */}
+      {view!=="editProfile"&&(
+        <div style={{display:"flex",borderTop:"1px solid #22304f",background:"rgba(13,18,32,0.98)",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
+          {[["chat","💬","Chat"],["dms","✉️","DMs"],["profile","👤","Profile"]].map(([v,icon,label])=>(
+            <button key={v} onClick={()=>setView(v)}
+              style={{flex:1,padding:"10px 0",background:"none",border:"none",color:(view===v||(view==="dm"&&v==="dms"))?"#b4a5ff":"#5f7099",fontSize:10,fontWeight:700,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,fontFamily:"'Space Grotesk',sans-serif",transition:"color 0.15s",position:"relative"}}>
+              <span style={{fontSize:20}}>{icon}</span>
+              {label}
+              {(view===v||(view==="dm"&&v==="dms"))&&<span style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:20,height:2,background:"#7C5CFF",borderRadius:"2px 2px 0 0"}}/>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── LoginScreen ───────────────────────────────────────────────────────────────
+function LoginScreen({onLogin}){
+  const [email,setEmail]=useState("");
+  const [password,setPassword]=useState("");
+  const [mode,setMode]=useState("login");
+  const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(false);
+
+  async function submit(){
+    setLoading(true);setErr("");
+    try{
+      const data=mode==="login"?await signIn(email,password):await signUp(email,password);
+      if(data.access_token)onLogin(data);
+      else setErr(data.error?.message||"Check your email to confirm signup.");
+    }catch(e){setErr(e.message);}
+    setLoading(false);
+  }
+
+  return(
+    <div style={{minHeight:"100dvh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:"15%",left:"50%",transform:"translateX(-50%)",width:340,height:340,background:"radial-gradient(circle,rgba(124,92,255,0.16),transparent 70%)",pointerEvents:"none"}}/>
+      <div style={{position:"absolute",bottom:"10%",right:"10%",width:240,height:240,background:"radial-gradient(circle,rgba(34,211,196,0.12),transparent 70%)",pointerEvents:"none"}}/>
+      <div style={{width:"100%",maxWidth:380,background:"rgba(22,29,53,0.55)",backdropFilter:"blur(24px)",borderRadius:28,padding:32,border:"1px solid #22304f",position:"relative",animation:"slideUp 0.3s ease",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:44,marginBottom:10}}>🎓</div>
+          <h1 style={{fontWeight:800,fontSize:30,marginBottom:6,fontFamily:"'Sora',sans-serif",letterSpacing:"-0.5px",background:"linear-gradient(135deg,#cdd6ff,#7C5CFF 50%,#22D3C4)",WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}}>CampusHub</h1>
+          <p style={{color:"#5f7099",fontSize:13}}>{mode==="login"?"Welcome back, student":"Join your campus community"}</p>
+        </div>
+        <input style={INP} type="email" placeholder="Email address" value={email} onChange={e=>setEmail(e.target.value)} onFocus={e=>{e.target.style.borderColor="#7C5CFF";e.target.style.boxShadow="0 0 0 3px rgba(124,92,255,0.15)";}} onBlur={e=>{e.target.style.borderColor="#22304f";e.target.style.boxShadow="none";}}/>
+        <input style={INP} type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} onFocus={e=>{e.target.style.borderColor="#7C5CFF";e.target.style.boxShadow="0 0 0 3px rgba(124,92,255,0.15)";}} onBlur={e=>{e.target.style.borderColor="#22304f";e.target.style.boxShadow="none";}}/>
+        {err&&<div style={{color:"#f87171",fontSize:13,marginBottom:12,padding:"8px 12px",background:"rgba(239,68,68,0.1)",borderRadius:8,border:"1px solid rgba(239,68,68,0.2)"}}>{err}</div>}
+        <button style={{...BTN,opacity:loading?0.6:1,boxShadow:loading?"none":"0 4px 20px rgba(124,92,255,0.35)"}} onClick={submit} disabled={loading}>
+          {loading?"...":(mode==="login"?"Sign In →":"Create Account →")}
+        </button>
+        <button style={{background:"none",border:"none",color:"#9d8fff",fontSize:13,cursor:"pointer",width:"100%",marginTop:14,textAlign:"center",fontFamily:"'Space Grotesk',sans-serif"}}
+          onClick={()=>{setMode(mode==="login"?"signup":"login");setErr("");}}>
+          {mode==="login"?"Don't have an account? Sign up":"Already have an account? Sign in"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
