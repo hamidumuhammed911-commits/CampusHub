@@ -963,3 +963,84 @@ function App(){
                       onContextMenu={e=>{e.preventDefault();setMsgMenuId(msg.id);}}
                       onTouchStart={()=>{const t=setTimeout(()=>setMsgMenuId(msg.id),600);return()=>clearTimeout(t);}}>
                       <button style={{background:"none",border:"none",padding:0,cursor:"pointer",flexShrink:0,marginTop:2}} onClick={()=>setViewProfile(profiles[msg.user_id]||{id:msg.user_id,username:msg.username})}>
+{isOwn?<Avatar name={msg.username} color={profiles[msg.user_id]?.avatar_color||msg.avatar_color} url={profiles[msg.user_id]?.avatar_url} size={32} online={!!onlineUsers[msg.user_id]}/>
+                        :<div className="avatar-ring"><Avatar name={msg.username} color={profiles[msg.user_id]?.avatar_color||msg.avatar_color} url={profiles[msg.user_id]?.avatar_url} size={32} online={!!onlineUsers[msg.user_id]}/></div>}
+                      </button>
+                      <div style={{flex:1,minWidth:0,maxWidth:"75%",display:"flex",flexDirection:"column",alignItems:isOwn?"flex-end":"flex-start"}}>
+                        <div style={{display:"flex",gap:8,alignItems:"baseline",marginBottom:3,flexDirection:isOwn?"row-reverse":"row"}}>
+                          <span style={{fontWeight:700,fontSize:12.5,fontFamily:"'Sora',sans-serif",color:isOwn?"#b4a5ff":profiles[msg.user_id]?.avatar_color||"#9aabd1"}}>{msg.username}</span>
+                          <span style={{fontSize:10,color:"#5f7099",fontFamily:"'JetBrains Mono',monospace"}}>{timeStr(msg.created_at)}</span>
+                        </div>
+                        {msg.image_url&&<img src={msg.image_url} className="img-msg" onClick={()=>setLightbox(msg.image_url)} alt="img"/>}
+                        {msg.voice_url&&<VoicePlayer url={msg.voice_url} duration={msg.voice_duration||0}/>}
+                        {msg.content&&(
+                          msgMenuId===("edit_"+msg.id)?(
+                            <div style={{width:"100%",marginTop:2}}>
+                              <textarea id={`edit-room-${msg.id}`} defaultValue={msg.content}
+                                onKeyDown={e=>{
+                                  if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();
+                                    const nc=e.target.value.trim();
+                                    if(nc){sbFetch(`/messages?id=eq.${msg.id}`,{method:"PATCH",headers:{Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({content:nc,edited_at:new Date().toISOString()})},session.access_token).then(()=>{setMsgMenuId(null);loadMessages();});}
+                                  }
+                                  if(e.key==="Escape"){setMsgMenuId(null);}
+                                }}
+                                autoFocus
+                                style={{width:"100%",background:"rgba(124,92,255,0.12)",border:"1px solid #7C5CFF",borderRadius:12,padding:"9px 13px",color:"#f4f6ff",fontSize:14,lineHeight:1.5,fontFamily:"'Space Grotesk',sans-serif",resize:"none",outline:"none",minHeight:60,boxShadow:"0 0 0 3px rgba(124,92,255,0.15)"}}/>
+                              <div style={{display:"flex",gap:8,marginTop:6,justifyContent:"flex-end"}}>
+                                <button onClick={()=>setMsgMenuId(null)} style={{background:"rgba(255,255,255,0.06)",border:"1px solid #22304f",borderRadius:8,color:"#9aabd1",fontSize:12,padding:"5px 12px",cursor:"pointer",fontFamily:"'Space Grotesk',sans-serif"}}>Cancel</button>
+                                <button onClick={()=>{const el=document.getElementById(`edit-room-${msg.id}`);const nc=el?.value.trim();if(nc){sbFetch(`/messages?id=eq.${msg.id}`,{method:"PATCH",headers:{Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({content:nc,edited_at:new Date().toISOString()})},session.access_token).then(()=>{setMsgMenuId(null);loadMessages();});}}} style={{background:"linear-gradient(135deg,#7C5CFF,#22D3C4)",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontWeight:700,padding:"5px 14px",cursor:"pointer",fontFamily:"'Sora',sans-serif"}}>Save</button>
+                              </div>
+                              <div style={{color:"#5f7099",fontSize:10,marginTop:4,textAlign:"right"}}>Enter to save · Esc to cancel</div>
+                            </div>
+                          ):(
+                            <div className={isOwn?"bubble-own":"bubble-other"} style={{padding:"9px 13px",color:"#f4f6ff",fontSize:14,lineHeight:1.5,wordBreak:"break-word",position:"relative"}}>
+                              {msg.content}
+                              {msg.edited_at&&<span style={{color:"#7C5CFF",fontStyle:"italic",fontSize:10,marginLeft:6}}>(edited)</span>}
+                            </div>
+                          )
+                        )}
+                      </div>
+                      {showMenu&&msgMenuId!==("edit_"+msg.id)&&(
+                        <div style={{position:"absolute",background:"#161d35",border:"1px solid #22304f",borderRadius:12,padding:6,zIndex:40,minWidth:130,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",top:0,[isOwn?"right":"left"]:44}}>
+                          <button style={{display:"block",width:"100%",background:"none",border:"none",color:"#f4f6ff",fontSize:13,padding:"7px 12px",cursor:"pointer",textAlign:"left",borderRadius:8}} onClick={()=>{setReplyTo(msg);setMsgMenuId(null);}}>↩ Reply</button>
+                          {(myProfile.role==="admin"||myProfile.role==="moderator")&&<button style={{display:"block",width:"100%",background:"none",border:"none",color:"#f4f6ff",fontSize:13,padding:"7px 12px",cursor:"pointer",textAlign:"left",borderRadius:8}} onClick={()=>pinMessage(msg)}>📌 Pin</button>}
+                          {isOwn&&!msg.image_url&&<button style={{display:"block",width:"100%",background:"none",border:"none",color:"#f4f6ff",fontSize:13,padding:"7px 12px",cursor:"pointer",textAlign:"left",borderRadius:8}} onClick={()=>setMsgMenuId("edit_"+msg.id)}>✏️ Edit</button>}
+                          {isOwn&&<button style={{display:"block",width:"100%",background:"none",border:"none",color:"#f87171",fontSize:13,padding:"7px 12px",cursor:"pointer",textAlign:"left",borderRadius:8}} onClick={async()=>{await sbFetch(`/messages?id=eq.${msg.id}`,{method:"DELETE",headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);setMsgMenuId(null);loadMessages();}}>🗑 Delete</button>}
+                        </div>
+                      )}
+                    </div>
+                  </React.Fragment>
+                );
+              })}
+              <div ref={bottomRef}/>
+            </div>
+
+            {/* Composer */}            <div style={{padding:"8px 12px 12px",borderTop:"1px solid #22304f",background:"rgba(10,14,26,0.92)",backdropFilter:"blur(12px)",flexShrink:0}}>
+              <ReplyPreview msg={replyTo?{username:replyTo.username,content:replyTo.content,image_url:replyTo.image_url}:null} onCancel={()=>setReplyTo(null)}/>
+              <div style={{display:"flex",gap:8,alignItems:"center",background:"rgba(255,255,255,0.04)",border:"1px solid #2c3c63",borderRadius:18,padding:"6px 6px 6px 14px",transition:"border-color 0.15s, box-shadow 0.15s"}}
+                onFocus={e=>{e.currentTarget.style.borderColor="#7C5CFF";e.currentTarget.style.boxShadow="0 0 0 3px rgba(124,92,255,0.15)";}}
+                onBlur={e=>{e.currentTarget.style.borderColor="#2c3c63";e.currentTarget.style.boxShadow="none";}}>
+                <button style={{background:"none",border:"none",color:"#5f7099",fontSize:19,cursor:"pointer",flexShrink:0,width:30,height:30,display:"flex",alignItems:"center",justifyContent:"center"}}
+                  onClick={()=>imgRef.current?.click()} disabled={uploadingImg} title="Send image">
+                  {uploadingImg?"⏳":"📎"}
+                </button>
+                <input ref={imgRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImageUpload}/>
+                <input ref={inputRef}
+                  style={{flex:1,background:"none",border:"none",outline:"none",color:"#f4f6ff",fontSize:14,fontFamily:"'Space Grotesk',sans-serif"}}
+                  placeholder={roomVoice.recording?"Recording…":`Message #${currentRoom.label}…`}
+                  value={input}
+                  onChange={e=>setInput(e.target.value)}
+                  onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMsg();}}}/>
+                <button
+                  onTouchStart={e=>{e.preventDefault();roomVoice.start();}}
+                  onTouchEnd={e=>{e.preventDefault();roomVoice.stop();}}
+                  onMouseDown={e=>{e.preventDefault();roomVoice.start();}}
+                  onMouseUp={e=>{e.preventDefault();roomVoice.stop();}}
+                  onMouseLeave={()=>{if(roomVoice.recording)roomVoice.stop();}}
+                  disabled={roomVoice.uploading}
+                  title="Hold to record voice note"
+                  style={{width:34,height:34,borderRadius:11,background:roomVoice.recording?"linear-gradient(135deg,#ef4444,#f97316)":roomVoice.uploading?"rgba(124,92,255,0.3)":"rgba(255,255,255,0.05)",border:roomVoice.recording?"none":"1px solid #22304f",color:"#fff",fontSize:15,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s",boxShadow:roomVoice.recording?"0 0 14px rgba(239,68,68,0.5)":"none"}}>
+                  {roomVoice.uploading?"⏳":roomVoice.recording?"⏹":"🎙"}
+                </button>
+                <button onClick={()=>sendMsg()}
+                  style={{width:36,height:36,borderRadius:12,background:"linear-gradient(135deg,#7C5CFF,#22D3C4)",border:"none",color:"#fff",fontSize:16,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:input.trim()||uploadingImg?1:0.35,transition:"all 0.15s",boxShadow:input.trim()?"0 2px 14px rgba(124,92,255,0.45)":"none"}}
