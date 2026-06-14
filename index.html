@@ -9,14 +9,14 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
-  --bg:#080c14; --surface:#0d1220; --card:#111827;
-  --border:#1e2d45; --border2:#243550;
-  --accent:#6C63FF; --accent2:#4FC3F7;
-  --gold:#f59e0b; --green:#22c55e; --red:#ef4444;
-  --text:#f0f4ff; --muted:#64748b; --muted2:#94a3b8;
+  --bg:#0a0e1a; --surface:#11162a; --card:#161d35;
+  --border:#22304f; --border2:#2c3c63;
+  --accent:#7C5CFF; --accent2:#22D3C4;
+  --gold:#FBBF24; --green:#22c55e; --red:#ef4444;
+  --text:#f4f6ff; --muted:#5f7099; --muted2:#9aabd1;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);}
@@ -26,21 +26,28 @@ select option{background:#1e2a3a;color:var(--text);}
 ::-webkit-scrollbar{width:3px;height:3px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
-body::before{content:'';position:fixed;top:-30vh;left:-20vw;width:80vw;height:80vh;background:radial-gradient(ellipse,rgba(108,99,255,0.07) 0%,transparent 70%);pointer-events:none;z-index:0;}
-body::after{content:'';position:fixed;bottom:-20vh;right:-10vw;width:60vw;height:60vh;background:radial-gradient(ellipse,rgba(79,195,247,0.05) 0%,transparent 70%);pointer-events:none;z-index:0;}
+body::before{content:'';position:fixed;top:-30vh;left:-20vw;width:80vw;height:80vh;background:radial-gradient(ellipse,rgba(124,92,255,0.10) 0%,transparent 70%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;bottom:-20vh;right:-10vw;width:60vw;height:60vh;background:radial-gradient(ellipse,rgba(34,211,196,0.07) 0%,transparent 70%);pointer-events:none;z-index:0;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
 @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:0.4;}30%{transform:translateY(-4px);opacity:1;}}
 @keyframes pop{0%{transform:scale(1);}50%{transform:scale(1.35);}100%{transform:scale(1);}}
 @keyframes slideUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+@keyframes glowMove{0%,100%{background-position:0% 50%;}50%{background-position:100% 50%;}}
 .msg-bubble{animation:fadeIn 0.18s ease;}
 .reaction-btn:hover{transform:scale(1.2);}
 .reaction-btn{transition:transform 0.15s;}
 .online-dot{animation:pulse 2s infinite;}
 .reaction-pop{animation:pop 0.25s ease;}
-.img-msg{max-width:220px;border-radius:12px;cursor:pointer;display:block;margin-top:6px;}
-.lightbox{position:fixed;inset:0;background:rgba(0,0,0,0.94);z-index:999;display:flex;align-items:center;justify-content:center;}
+.img-msg{max-width:220px;border-radius:14px;cursor:pointer;display:block;margin-top:6px;border:1px solid var(--border);}
+.lightbox{position:fixed;inset:0;background:rgba(5,7,15,0.96);z-index:999;display:flex;align-items:center;justify-content:center;}
 .lightbox img{max-width:95vw;max-height:90vh;border-radius:12px;}
+.bubble-own{background:linear-gradient(135deg,rgba(124,92,255,0.32),rgba(34,211,196,0.16));border:1px solid rgba(124,92,255,0.4);box-shadow:0 2px 12px rgba(124,92,255,0.12);border-radius:16px 4px 16px 16px;}
+.bubble-other{background:rgba(255,255,255,0.04);backdrop-filter:blur(6px);border:1px solid var(--border);border-radius:4px 16px 16px 16px;}
+.room-tab-active{position:relative;}
+.room-tab-active::after{content:'';position:absolute;left:14px;right:14px;bottom:-1px;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;}
+.glass-header{background:rgba(10,14,26,0.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);}
+.avatar-ring{padding:2px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:inline-flex;}
 </style>
 </head>
 <body>
@@ -55,8 +62,8 @@ const CLOUDINARY_PRESET = "campushub";
 const EMOJI_REACTIONS = ["👍","❤️","😂","😮","🔥","🎉"];
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
-const INP = {width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid #1e2d45",borderRadius:10,padding:"11px 14px",color:"#f0f4ff",fontSize:14,outline:"none",marginBottom:10,display:"block",fontFamily:"'Space Grotesk',sans-serif"};
-const BTN = {width:"100%",background:"linear-gradient(135deg,#6C63FF,#4FC3F7)",border:"none",borderRadius:10,padding:12,color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"'Space Grotesk',sans-serif"};
+const INP = {width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid #22304f",borderRadius:12,padding:"11px 14px",color:"#f4f6ff",fontSize:14,outline:"none",marginBottom:10,display:"block",fontFamily:"'Space Grotesk',sans-serif",transition:"border-color 0.15s, box-shadow 0.15s"};
+const BTN = {width:"100%",background:"linear-gradient(135deg,#7C5CFF,#22D3C4)",border:"none",borderRadius:12,padding:13,color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"'Sora',sans-serif",letterSpacing:"0.2px",boxShadow:"0 4px 16px rgba(124,92,255,0.25)"};
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 async function uploadToCloudinary(file) {
@@ -138,7 +145,7 @@ const ROOMS = [
   {id:"assignments",label:"assignments",emoji:"📝"},
 ];
 const LEVELS = ["Jambite (Pre-university)","100L","200L","300L","400L","500L","Graduate"];
-const COLORS = ["#6C63FF","#FF6584","#43B89C","#F4A261","#4FC3F7","#FF8A65","#A29BFE"];
+const COLORS = ["#7C5CFF","#FF6584","#43B89C","#F4A261","#22D3C4","#FF8A65","#A29BFE"];
 const randomColor = () => COLORS[Math.floor(Math.random()*COLORS.length)];
 const timeStr = ts => new Date(ts).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
 const dateStr = ts => {
@@ -155,10 +162,10 @@ function Avatar({name,color,url,size=36,online=false}){
   return (
     <div style={{position:"relative",flexShrink:0}}>
       {url&&!err
-        ?<img src={url} alt={name} onError={()=>setErr(true)} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",border:"2px solid #1e2d45",display:"block"}}/>
-        :<div style={{width:size,height:size,borderRadius:"50%",background:color||"#6C63FF",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:size*0.33}}>{name?.slice(0,2).toUpperCase()}</div>
+        ?<img src={url} alt={name} onError={()=>setErr(true)} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",border:"2px solid #22304f",display:"block"}}/>
+        :<div style={{width:size,height:size,borderRadius:"50%",background:color||"#7C5CFF",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:size*0.33}}>{name?.slice(0,2).toUpperCase()}</div>
       }
-      {online&&<span className="online-dot" style={{position:"absolute",bottom:1,right:1,width:9,height:9,borderRadius:"50%",background:"#22c55e",border:"2px solid #111827"}}/>}
+      {online&&<span className="online-dot" style={{position:"absolute",bottom:1,right:1,width:9,height:9,borderRadius:"50%",background:"#22c55e",border:"2px solid #161d35"}}/>}
     </div>
   );
 }
@@ -179,11 +186,11 @@ function PhotoUploader({currentUrl,currentColor,name,onUpload}){
     <div style={{textAlign:"center",marginBottom:16}}>
       <div style={{position:"relative",display:"inline-block"}}>
         <Avatar name={name} color={currentColor} url={preview} size={80}/>
-        <button style={{position:"absolute",bottom:0,right:0,width:26,height:26,borderRadius:"50%",background:"#6C63FF",border:"2px solid #111827",color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
+        <button style={{position:"absolute",bottom:0,right:0,width:26,height:26,borderRadius:"50%",background:"#7C5CFF",border:"2px solid #161d35",color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
           onClick={()=>ref.current.click()} disabled={uploading}>{uploading?"⏳":"📷"}</button>
       </div>
       <input ref={ref} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile}/>
-      <div style={{color:"#475569",fontSize:11,marginTop:6}}>{uploading?"Uploading...":"Tap 📷 to change photo"}</div>
+      <div style={{color:"#5f7099",fontSize:11,marginTop:6}}>{uploading?"Uploading...":"Tap 📷 to change photo"}</div>
     </div>
   );
 }
@@ -200,20 +207,19 @@ function ProfileCard({p,onClose,isOwn,onEdit,online,onMessage}){
   const wa=p.phone?`https://wa.me/${p.phone.replace(/[^0-9]/g,'')}`:"";
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
-      <div style={{background:"#111827",border:"1px solid #1e2d45",borderRadius:20,padding:24,width:"100%",maxWidth:320,textAlign:"center",animation:"slideUp 0.2s ease"}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:"#161d35",border:"1px solid #22304f",borderRadius:20,padding:24,width:"100%",maxWidth:320,textAlign:"center",animation:"slideUp 0.2s ease"}} onClick={e=>e.stopPropagation()}>
         <div style={{display:"flex",justifyContent:"center",marginBottom:12}}><Avatar name={p.username} color={p.avatar_color} url={p.avatar_url} size={80} online={online}/></div>
-        <h2 style={{color:"#f0f4ff",fontWeight:800,fontSize:20}}>{p.username}</h2>
+        <h2 style={{color:"#f4f6ff",fontWeight:800,fontSize:20}}>{p.username}</h2>
         {online&&<div style={{color:"#22c55e",fontSize:12,marginTop:4}}>● Online</div>}
-        <div style={{color:"#a89eff",fontSize:13,marginTop:4}}>{p.student_id}</div>
+        <div style={{color:"#b4a5ff",fontSize:13,marginTop:4}}>{p.student_id}</div>
         <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
-          {p.university&&p.university!=="Not specified"&&<div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"8px 14px",color:"#94a3b8",fontSize:13}}>🏫 {p.university}</div>}
-          {p.department&&<div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"8px 14px",color:"#94a3b8",fontSize:13}}>📚 {p.department}</div>}
-          {p.level&&<div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"8px 14px",color:"#94a3b8",fontSize:13}}>🎓 {p.level}</div>}
+          {p.university&&p.university!=="Not specified"&&<div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"8px 14px",color:"#9aabd1",fontSize:13}}>🏫 {p.university}</div>}
+          {p.department&&<div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"8px 14px",color:"#9aabd1",fontSize:13}}>📚 {p.department}</div>}
+          {p.level&&<div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"8px 14px",color:"#9aabd1",fontSize:13}}>🎓 {p.level}</div>}
         </div>
         {wa&&<a href={wa} target="_blank" style={{display:"block",marginTop:16,background:"#25D366",borderRadius:10,padding:"10px",color:"#fff",fontSize:14,fontWeight:700,textDecoration:"none"}}>💬 WhatsApp</a>}
         {!isOwn&&<button style={{...BTN,marginTop:10,background:"rgba(108,99,255,0.15)",border:"1px solid rgba(108,99,255,0.3)"}} onClick={()=>onMessage(p.id)}>💬 Send Message</button>}
-        {isOwn&&<button 
-{isOwn&&<button style={{...BTN,marginTop:12,background:"rgba(255,255,255,0.05)",border:"1px solid #1e2d45"}} onClick={()=>{onClose();onEdit();}}>✏️ Edit Profile</button>}
+        {isOwn&&<button style={{...BTN,marginTop:12,background:"rgba(255,255,255,0.05)",border:"1px solid #22304f"}} onClick={()=>{onClose();onEdit();}}>✏️ Edit Profile</button>}
         <button style={{background:"none",border:"none",color:"#64748b",fontSize:13,cursor:"pointer",marginTop:8}} onClick={onClose}>Close</button>
       </div>
     </div>
@@ -238,23 +244,23 @@ function EditProfile({profile,session,onSave,onClose}){
   }
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflowY:"auto"}}>
-      <div style={{background:"#111827",border:"1px solid #1e2d45",borderRadius:20,padding:24,width:"100%",maxWidth:380}}>
-        <h2 style={{color:"#f0f4ff",fontWeight:800,fontSize:18,marginBottom:16,textAlign:"center"}}>✏️ Edit Profile</h2>
+      <div style={{background:"#161d35",border:"1px solid #22304f",borderRadius:20,padding:24,width:"100%",maxWidth:380}}>
+        <h2 style={{color:"#f4f6ff",fontWeight:800,fontSize:18,marginBottom:16,textAlign:"center"}}>✏️ Edit Profile</h2>
         <PhotoUploader currentUrl={avatarUrl} currentColor={profile?.avatar_color} name={profile?.username} onUpload={url=>setAvatarUrl(url)}/>
-        <label style={{color:"#94a3b8",fontSize:12,marginBottom:4,display:"block"}}>School / University</label>
+        <label style={{color:"#9aabd1",fontSize:12,marginBottom:4,display:"block"}}>School / University</label>
         <input style={INP} placeholder="University or school name" value={university} onChange={e=>setUniversity(e.target.value)}/>
-        <label style={{color:"#94a3b8",fontSize:12,marginBottom:4,display:"block"}}>Department / Course</label>
+        <label style={{color:"#9aabd1",fontSize:12,marginBottom:4,display:"block"}}>Department / Course</label>
         <input style={INP} placeholder="Department or course" value={department} onChange={e=>setDepartment(e.target.value)}/>
-        <label style={{color:"#94a3b8",fontSize:12,marginBottom:4,display:"block"}}>Level</label>
+        <label style={{color:"#9aabd1",fontSize:12,marginBottom:4,display:"block"}}>Level</label>
         <select style={{...INP,appearance:"none"}} value={level} onChange={e=>setLevel(e.target.value)}>
           <option value="">Select Level</option>
           {LEVELS.map(l=><option key={l} value={l}>{l}</option>)}
         </select>
-        <label style={{color:"#94a3b8",fontSize:12,marginBottom:4,display:"block"}}>WhatsApp Number</label>
+        <label style={{color:"#9aabd1",fontSize:12,marginBottom:4,display:"block"}}>WhatsApp Number</label>
         <input style={INP} placeholder="e.g. 2348012345678" value={phone} onChange={e=>setPhone(e.target.value)}/>
         {err&&<div style={{color:"#f87171",fontSize:13,marginBottom:10}}>{err}</div>}
         <div style={{display:"flex",gap:10}}>
-          <button style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid #1e2d45",borderRadius:10,padding:12,color:"#94a3b8",cursor:"pointer",fontSize:14}} onClick={onClose}>Cancel</button>
+          <button style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid #22304f",borderRadius:10,padding:12,color:"#9aabd1",cursor:"pointer",fontSize:14}} onClick={onClose}>Cancel</button>
           <button style={{flex:1,...BTN,opacity:saving?0.6:1}} onClick={save} disabled={saving}>{saving?"Saving...":"Save Changes"}</button>
         </div>
       </div>
@@ -272,16 +278,16 @@ function ReactionBar({msgId,reactions,userId,onReact}){
       {Object.entries(grouped).map(([emoji,users])=>{
         const mine=users.includes(userId);
         return(<button key={emoji} className="reaction-btn" onClick={()=>onReact(msgId,emoji)}
-          style={{background:mine?"rgba(108,99,255,0.25)":"rgba(255,255,255,0.05)",border:mine?"1px solid #6C63FF":"1px solid #1e2d45",borderRadius:20,padding:"2px 8px",fontSize:13,cursor:"pointer",color:"#e2e8f0",display:"flex",alignItems:"center",gap:4}}>
-          {emoji}<span style={{fontSize:11,color:"#94a3b8"}}>{users.length}</span>
+          style={{background:mine?"rgba(108,99,255,0.25)":"rgba(255,255,255,0.05)",border:mine?"1px solid #7C5CFF":"1px solid #22304f",borderRadius:20,padding:"2px 8px",fontSize:13,cursor:"pointer",color:"#e2e8f0",display:"flex",alignItems:"center",gap:4}}>
+          {emoji}<span style={{fontSize:11,color:"#9aabd1"}}>{users.length}</span>
         </button>);
       })}
       <button className="reaction-btn" onClick={()=>setOpen(!open)}
-        style={{background:"rgba(255,255,255,0.05)",border:"1px solid #1e2d45",borderRadius:20,padding:"2px 8px",fontSize:13,cursor:"pointer",color:"#64748b"}}>
+        style={{background:"rgba(255,255,255,0.05)",border:"1px solid #22304f",borderRadius:20,padding:"2px 8px",fontSize:13,cursor:"pointer",color:"#64748b"}}>
         {open?"✕":"＋"}
       </button>
       {open&&(
-        <div style={{display:"flex",gap:4,background:"#111827",border:"1px solid #1e2d45",borderRadius:20,padding:"4px 8px",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:4,background:"#161d35",border:"1px solid #22304f",borderRadius:20,padding:"4px 8px",flexWrap:"wrap"}}>
           {EMOJI_REACTIONS.map(e=>(
             <button key={e} className="reaction-btn" onClick={()=>{onReact(msgId,e);setOpen(false);}}
               style={{background:"none",border:"none",fontSize:18,cursor:"pointer"}}>{e}</button>
@@ -296,22 +302,4 @@ function ReactionBar({msgId,reactions,userId,onReact}){
 function ReplyPreview({msg,onCancel}){
   if(!msg)return null;
   return(
-    <div style={{background:"rgba(108,99,255,0.08)",borderLeft:"3px solid #6C63FF",borderRadius:"0 8px 8px 0",padding:"6px 10px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <div>
-        <div style={{color:"#a89eff",fontSize:11,fontWeight:700}}>↩ Replying to {msg.username}</div>
-        <div style={{color:"#64748b",fontSize:12,marginTop:2,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:240}}>
-          {msg.image_url?"📷 Photo":msg.content}
-        </div>
-      </div>
-      <button onClick={onCancel} style={{background:"none",border:"none",color:"#64748b",fontSize:18,cursor:"pointer",paddingLeft:8}}>✕</button>
-    </div>
-  );
-}
-
-// ── DateDivider ───────────────────────────────────────────────────────────────
-function DateDivider({label}){
-  return(
-    <div style={{display:"flex",alignItems:"center",gap:10,margin:"10px 0"}}>
-      <div style={{flex:1,height:1,background:"#1e2d45"}}/>
-      <span style={{color:"#475569",fontSize:11,fontWeight:600,whiteSpace:"nowrap",background:"#080c14",padding:"0 8px"}}>{label}</span>
-      
+    <div 
