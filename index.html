@@ -830,7 +830,7 @@ function App(){
     if(!session)return;
     try{
       const joinFilter=profile?.created_at?`&created_at=gte.${encodeURIComponent(profile.created_at)}`:"";
-      const data=await sbFetch(`/messages?room=eq.${room}&private=eq.false${joinFilter}&order=created_at.asc&limit=100`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      const data=await sbFetch(`/messages?room=eq.${room}&private=eq.false&order=created_at.asc&limit=100`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
       setMessages(Array.isArray(data)?data:[]);
     }catch{}
   }
