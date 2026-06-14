@@ -124,4 +124,130 @@ async function loadDirectMessages(convId, token) {
 }
 async function sendDirectMessage(convId, senderId, content, replyTo, mediaUrl, mediaType, token) {
   await sbFetch("/direct_messages",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:JSON.stringify({conversation_id:convId,sender_id:senderId,content:content||null,reply_to:replyTo||null,media_url:mediaUrl||null,media_type:mediaType||null})},token);
-  await sbFetch(`/conversations?id=eq.${convId}`,{method:"PATCH",headers:{Authorization:`Bearer ${token}`},body:JSON.stringify({last_message_at:new Date().toISOString()})},token);
+  await sbFetch(`/conversations?id=eq.${convId}`,{method:"PATCH",headers:{Authorization:`Bearer ${token}`},body:JSON.stringify({last_message_at:new Date().toISOString()})},token);}
+async function markDmRead(convId, myId, token) {
+  try { await sbFetch(`/direct_messages?conversation_id=eq.${convId}&sender_id=neq.${myId}&read_at=is.null`,{method:"PATCH",headers:{Authorization:`Bearer ${token}`},body:JSON.stringify({read_at:new Date().toISOString()})},token); } catch {}
+}
+async function broadcastDmTyping(convId, userId, token) {
+  try { await sbFetch(`/dm_typing?conversation_id=eq.${convId}&user_id=eq.${userId}`,{method:"UPSERT",headers:{Authorization:`Bearer ${token}`,Prefer:"resolution=merge-duplicates"},body:JSON.stringify({conversation_id:convId,user_id:userId,updated_at:new Date().toISOString()})},token); } catch {}
+}
+async function loadDmTypers(convId, myId, token) {
+  try { const cutoff=new Date(Date.now()-5000).toISOString(); const d=await sbFetch(`/dm_typing?conversation_id=eq.${convId}&updated_at=gte.${cutoff}&user_id=neq.${myId}`,{headers:{Authorization:`Bearer ${token}`}},token); return d.length>0; } catch { return false; }
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const ROOMS = [
+  {id:"general",label:"general",emoji:"💬"},
+  {id:"study",label:"study-group",emoji:"📚"},
+  {id:"announcements",label:"announcements",emoji:"📢"},
+  {id:"off-topic",label:"off-topic",emoji:"🎮"},
+  {id:"assignments",label:"assignments",emoji:"📝"},
+];
+const LEVELS = ["Jambite (Pre-university)","100L","200L","300L","400L","500L","Graduate"];
+const COLORS = ["#7C5CFF","#FF6584","#43B89C","#F4A261","#22D3C4","#FF8A65","#A29BFE"];
+const randomColor = () => COLORS[Math.floor(Math.random()*COLORS.length)];
+const timeStr = ts => new Date(ts).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+const dateStr = ts => {
+  const d=new Date(ts),now=new Date();
+  if (d.toDateString()===now.toDateString()) return "Today";
+  const yest=new Date(now); yest.setDate(yest.getDate()-1);
+  if (d.toDateString()===yest.toDateString()) return "Yesterday";
+  return d.toLocaleDateString([],{month:"short",day:"numeric"});
+};
+
+// ── Avatar ────────────────────────────────────────────────────────────────────
+function Avatar({name,color,url,size=36,online=false}){
+  const [err,setErr]=useState(false);
+  return (
+    <div style={{position:"relative",flexShrink:0}}>
+      {url&&!err
+        ?<img src={url} alt={name} onError={()=>setErr(true)} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",border:"2px solid #22304f",display:"block"}}/>
+        :<div style={{width:size,height:size,borderRadius:"50%",background:color||"#7C5CFF",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:size*0.33}}>{name?.slice(0,2).toUpperCase()}</div>
+      }
+      {online&&<span className="online-dot" style={{position:"absolute",bottom:1,right:1,width:9,height:9,borderRadius:"50%",background:"#22c55e",border:"2px solid #161d35"}}/>}
+    </div>
+  );
+}
+
+// ── PhotoUploader ─────────────────────────────────────────────────────────────
+function PhotoUploader({currentUrl,currentColor,name,onUpload}){
+  const [uploading,setUploading]=useState(false);
+  const [preview,setPreview]=useState(currentUrl||"");
+  const ref=useRef();
+  async function handleFile(e){
+    const file=e.target.files[0]; if(!file)return;
+    setUploading(true);
+    try{const url=await uploadToCloudinary(file);setPreview(url);onUpload(url);}
+    catch{alert("Upload failed.");}
+    setUploading(false);
+  }
+  return(
+    <div style={{textAlign:"center",marginBottom:16}}>
+      <div style={{position:"relative",display:"inline-block"}}>
+        <Avatar name={name} color={currentColor} url={preview} size={80}/>
+        <button style={{position:"absolute",bottom:0,right:0,width:26,height:26,borderRadius:"50%",background:"#7C5CFF",border:"2px solid #161d35",color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
+          onClick={()=>ref.current.click()} disabled={uploading}>{uploading?"⏳":"📷"}</button>
+      </div>
+      <input ref={ref} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile}/>
+      <div style={{color:"#5f7099",fontSize:11,marginTop:6}}>{uploading?"Uploading...":"Tap 📷 to change photo"}</div>
+    </div>
+  );
+}
+
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+function Lightbox({url,onClose}){
+  useEffect(()=>{const fn=e=>{if(e.key==="Escape")onClose();};window.addEventListener("keydown",fn);return()=>window.removeEventListener("keydown",fn);},[]);
+  return(<div className="lightbox" onClick={onClose}><img src={url} onClick={e=>e.stopPropagation()} alt="full"/></div>);
+}
+
+// ── ProfileCard ───────────────────────────────────────────────────────────────
+function ProfileCard({p,onClose,isOwn,onEdit,online,onMessage}){
+  if(!p)return null;
+  const wa=p.phone?`https://wa.me/${p.phone.replace(/[^0-9]/g,'')}`:"";
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
+      <div style={{background:"#161d35",border:"1px solid #22304f",borderRadius:20,padding:24,width:"100%",maxWidth:320,textAlign:"center",animation:"slideUp 0.2s ease"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:12}}><Avatar name={p.username} color={p.avatar_color} url={p.avatar_url} size={80} online={online}/></div>
+        <h2 style={{color:"#f4f6ff",fontWeight:800,fontSize:20}}>{p.username}</h2>
+        {online&&<div style={{color:"#22c55e",fontSize:12,marginTop:4}}>● Online</div>}
+        <div style={{color:"#b4a5ff",fontSize:13,marginTop:4}}>{p.student_id}</div>
+        <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
+          {p.university&&p.university!=="Not specified"&&<div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"8px 14px",color:"#9aabd1",fontSize:13}}>🏫 {p.university}</div>}
+          {p.department&&<div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"8px 14px",color:"#9aabd1",fontSize:13}}>📚 {p.department}</div>}
+          {p.level&&<div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"8px 14px",color:"#9aabd1",fontSize:13}}>🎓 {p.level}</div>}
+        </div>
+        {wa&&<a href={wa} target="_blank" style={{display:"block",marginTop:16,background:"#25D366",borderRadius:10,padding:"10px",color:"#fff",fontSize:14,fontWeight:700,textDecoration:"none"}}>💬 WhatsApp</a>}
+        {!isOwn&&<button style={{...BTN,marginTop:10,background:"rgba(108,99,255,0.15)",border:"1px solid rgba(108,99,255,0.3)"}} onClick={()=>onMessage(p.id)}>💬 Send Message</button>}
+        {isOwn&&<button style={{...BTN,marginTop:12,background:"rgba(255,255,255,0.05)",border:"1px solid #22304f"}} onClick={()=>{onClose();onEdit();}}>✏️ Edit Profile</button>}
+        <button style={{background:"none",border:"none",color:"#64748b",fontSize:13,cursor:"pointer",marginTop:8}} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+// ── EditProfile ───────────────────────────────────────────────────────────────
+function EditProfile({profile,session,onSave,onClose}){
+  const [avatarUrl,setAvatarUrl]=useState(profile?.avatar_url||"");
+  const [university,setUniversity]=useState(profile?.university||"");
+  const [department,setDepartment]=useState(profile?.department||"");
+  const [level,setLevel]=useState(profile?.level||"");
+  const [phone,setPhone]=useState(profile?.phone||"");
+  const [saving,setSaving]=useState(false);
+  const [err,setErr]=useState("");
+  async function save(){
+    setSaving(true);
+    try{await sbFetch(`/profiles?id=eq.${profile.id}`,{method:"PATCH",headers:{Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({avatar_url:avatarUrl,university,department,level,phone})},session.access_token);
+    onSave({...profile,avatar_url:avatarUrl,university,department,level,phone});}
+    catch{setErr("Failed to save. Try again.");}
+    setSaving(false);
+  }
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflowY:"auto"}}>
+      <div style={{background:"#161d35",border:"1px solid #22304f",borderRadius:20,padding:24,width:"100%",maxWidth:380}}>
+        <h2 style={{color:"#f4f6ff",fontWeight:800,fontSize:18,marginBottom:16,textAlign:"center"}}>✏️ Edit Profile</h2>
+        <PhotoUploader currentUrl={avatarUrl} currentColor={profile?.avatar_color} name={profile?.username} onUpload={url=>setAvatarUrl(url)}/>
+        <label style={{color:"#9aabd1",fontSize:12,marginBottom:4,display:"block"}}>School / University</label>
+        <input style={INP} placeholder="University or school name" value={university} onChange={e=>setUniversity(e.target.value)}/>
+        <label style={{color:"#9aabd1",fontSize:12,marginBottom:4,display:"block"}}>Department / Course</label>
+        <input style={INP} placeholder="Department or course" value={department} onChange={e=>setDepartment(e.target.value)}/>
+        <label style={{color:"#9aabd1",fontSize:12,marginBottom:4,display:"block"}}>Level</label>
