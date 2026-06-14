@@ -277,3 +277,110 @@ function EditProfile({profile,session,onSave,onClose}){
         <label style={{color:"#9aabd1",fontSize:12,marginBottom:4,display:"block"}}>Level</label>        <select style={{...INP,appearance:"none"}} value={level} onChange={e=>setLevel(e.target.value)}>
           <option value="">Select Level</option>
           {LEVELS.map(l=><option key={l} value={l}>{l}</option>)}
+</select>
+        <label style={{color:"#9aabd1",fontSize:12,marginBottom:4,display:"block"}}>WhatsApp Number</label>
+        <div style={{display:"flex",gap:8,marginBottom:10}}>
+          <select style={{...INP,marginBottom:0,width:110,flexShrink:0,appearance:"none"}} value={countryCode} onChange={e=>setCountryCode(e.target.value)}>
+            {COUNTRY_CODES.map(c=><option key={c.code+c.name} value={c.code}>{c.code} {c.name}</option>)}
+          </select>
+          <input style={{...INP,marginBottom:0,flex:1}} placeholder="8012345678" inputMode="numeric" value={phoneNum} onChange={e=>setPhoneNum(e.target.value.replace(/[^0-9]/g,""))}/>
+        </div>
+        <div style={{color:"#5f7099",fontSize:11,marginBottom:10,marginTop:-4}}>Enter number without leading 0 — saved as {countryCode}{phoneNum.replace(/^0+/,"")||"…"}</div>
+        {err&&<div style={{color:"#f87171",fontSize:13,marginBottom:10}}>{err}</div>}
+        <div style={{display:"flex",gap:10}}>
+          <button style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid #22304f",borderRadius:10,padding:12,color:"#9aabd1",cursor:"pointer",fontSize:14}} onClick={onClose}>Cancel</button>
+          <button style={{flex:1,...BTN,opacity:saving?0.6:1}} onClick={save} disabled={saving}>{saving?"Saving...":"Save Changes"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ReactionBar ───────────────────────────────────────────────────────────────
+function ReactionBar({msgId,reactions,userId,onReact}){
+  const [open,setOpen]=useState(false);
+  const grouped={};
+  (reactions||[]).forEach(r=>{grouped[r.emoji]=grouped[r.emoji]||[];grouped[r.emoji].push(r.user_id);});
+  return(
+    <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4,alignItems:"center"}}>
+      {Object.entries(grouped).map(([emoji,users])=>{
+        const mine=users.includes(userId);
+        return(<button key={emoji} className="reaction-btn" onClick={()=>onReact(msgId,emoji)}
+          style={{background:mine?"rgba(108,99,255,0.25)":"rgba(255,255,255,0.05)",border:mine?"1px solid #7C5CFF":"1px solid #22304f",borderRadius:20,padding:"2px 8px",fontSize:13,cursor:"pointer",color:"#e2e8f0",display:"flex",alignItems:"center",gap:4}}>
+          {emoji}<span style={{fontSize:11,color:"#9aabd1"}}>{users.length}</span>
+        </button>);
+      })}
+      <button className="reaction-btn" onClick={()=>setOpen(!open)}
+        style={{background:"rgba(255,255,255,0.05)",border:"1px solid #22304f",borderRadius:20,padding:"2px 8px",fontSize:13,cursor:"pointer",color:"#64748b"}}>
+        {open?"✕":"＋"}
+      </button>
+      {open&&(
+        <div style={{display:"flex",gap:4,background:"#161d35",border:"1px solid #22304f",borderRadius:20,padding:"4px 8px",flexWrap:"wrap"}}>
+          {EMOJI_REACTIONS.map(e=>(
+            <button key={e} className="reaction-btn" onClick={()=>{onReact(msgId,e);setOpen(false);}}
+              style={{background:"none",border:"none",fontSize:18,cursor:"pointer"}}>{e}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ReplyPreview ──────────────────────────────────────────────────────────────
+function ReplyPreview({msg,onCancel}){
+  if(!msg)return null;
+  return(
+    <div style={{background:"rgba(108,99,255,0.08)",borderLeft:"3px solid #7C5CFF",borderRadius:"0 8px 8px 0",padding:"6px 10px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div>
+        <div style={{color:"#b4a5ff",fontSize:11,fontWeight:700}}>↩ Replying to {msg.username}</div>
+        <div style={{color:"#64748b",fontSize:12,marginTop:2,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:240}}>
+          {msg.image_url?"📷 Photo":msg.content}
+        </div>
+      </div>
+      <button onClick={onCancel} style={{background:"none",border:"none",color:"#64748b",fontSize:18,cursor:"pointer",paddingLeft:8}}>✕</button>
+    </div>
+  );
+}
+
+// ── DateDivider ───────────────────────────────────────────────────────────────
+function DateDivider({label}){
+  return(
+    <div style={{display:"flex",alignItems:"center",gap:10,margin:"10px 0"}}>
+      <div style={{flex:1,height:1,background:"#22304f"}}/>
+      <span style={{color:"#5f7099",fontSize:11,fontWeight:600,whiteSpace:"nowrap",background:"#0a0e1a",padding:"0 8px"}}>{label}</span>
+      <div style={{flex:1,height:1,background:"#22304f"}}/>
+    </div>
+  );
+}
+
+// ── TypingIndicator ───────────────────────────────────────────────────────────
+function TypingIndicator({typers}){
+  if(!typers||typers.length===0)return null;
+  const names=typers.slice(0,2).join(", ");
+  const extra=typers.length>2?` +${typers.length-2}`:"";
+  return(
+    <div style={{color:"#64748b",fontSize:12,padding:"0 16px 6px",display:"flex",alignItems:"center",gap:6}}>
+      <span style={{display:"inline-flex",gap:3}}>
+        {[0,1,2].map(i=><span key={i} style={{width:5,height:5,borderRadius:"50%",background:"#5f7099",display:"inline-block",animation:`bounce ${0.8+i*0.2}s ${i*0.15}s infinite`}}/>)}
+      </span>
+      <span>{names}{extra} typing…</span>
+    </div>
+  );
+}
+
+// ── ConversationList ──────────────────────────────────────────────────────────
+function ConversationList({conversations,profiles,myId,onlineUsers,onSelect}){
+  if(!conversations.length)return(
+    <div style={{color:"#5f7099",textAlign:"center",marginTop:60,padding:16}}>
+      <div style={{fontSize:40,marginBottom:12}}>💬</div>
+      <div style={{fontWeight:600,color:"#9aabd1",marginBottom:6}}>No conversations yet</div>
+      <div style={{fontSize:13}}>Start a DM from someone's profile!</div>
+    </div>
+  );
+  return(
+    <div style={{display:"flex",flexDirection:"column"}}>
+      {conversations.map(conv=>{
+        const otherId=conv.user1_id===myId?conv.user2_id:conv.user1_id;
+        const p=profiles[otherId]||{username:"Unknown"};
+        const isOnline=!!onlineUsers[otherId];
+        return(
