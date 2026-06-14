@@ -628,4 +628,130 @@ function PinnedBar({pinned,profile,onJump,onUnpin}){
   const canModerate=profile?.role==="admin"||profile?.role==="moderator";
   const top=pinned[0];
   return(
-    <div style={{borderBottom:"1px solid #22304f",background:"linear-gradient(90deg,rgba(124,92,255,0.10),rgba(34,211,196,0.06))",flexShrink:0}}>
+    <div style={{borderBottom:"1px solid #22304f",background:"linear-gradient(90deg,rgba(124,92,255,0.10),rgba(34,211,196,0.06))",flexShrink:0}}>      <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
+        <span style={{fontSize:13}}>📌</span>
+        <div style={{flex:1,minWidth:0,fontSize:12.5,color:"#cdd6ff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+          <span style={{fontWeight:700,fontFamily:"'Sora',sans-serif",color:"#b4a5ff",marginRight:6}}>{top.username}</span>
+          {top.content||(top.image_url?"📷 Photo":"")}
+        </div>
+        {pinned.length>1&&<span style={{fontSize:11,color:"#5f7099",flexShrink:0}}>+{pinned.length-1}</span>}
+        <span style={{fontSize:11,color:"#5f7099",flexShrink:0}}>{open?"▲":"▼"}</span>
+      </div>
+      {open&&(
+        <div style={{maxHeight:180,overflowY:"auto",padding:"0 14px 8px"}}>
+          {pinned.map(m=>(
+            <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderTop:"1px solid #22304f50"}}>
+              <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>onJump(m.id)}>
+                <div style={{fontSize:12,fontWeight:700,fontFamily:"'Sora',sans-serif",color:"#b4a5ff"}}>{m.username}</div>
+                <div style={{fontSize:12.5,color:"#cdd6ff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.content||(m.image_url?"📷 Photo":"")}</div>
+              </div>
+              {canModerate&&<button style={{background:"none",border:"none",color:"#f87171",fontSize:11,cursor:"pointer",flexShrink:0,padding:"4px 6px"}} onClick={()=>onUnpin(m.id)}>Unpin</button>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
+function App(){
+  const [session,setSession]=useState(null);
+  const [profile,setProfile]=useState(null);
+  const [profiles,setProfiles]=useState({});
+  const [messages,setMessages]=useState([]);
+  const [input,setInput]=useState("");
+  const [room,setRoom]=useState("general");
+  const [view,setView]=useState("chat");
+  const [conversations,setConversations]=useState([]);
+  const [currentConv,setCurrentConv]=useState(null);
+  const [currentDmUser,setCurrentDmUser]=useState(null);
+  const [onlineUsers,setOnlineUsers]=useState({});
+  const [viewProfile,setViewProfile]=useState(null);
+  const [lightbox,setLightbox]=useState(null);
+  const [replyTo,setReplyTo]=useState(null);
+  const [msgMenuId,setMsgMenuId]=useState(null);
+  const [showSearch,setShowSearch]=useState(false);
+  const [pinned,setPinned]=useState([]);
+  const [uploadingImg,setUploadingImg]=useState(false);
+  const bottomRef=useRef(null);
+  const pollRef=useRef(null);
+  const inputRef=useRef(null);
+  const imgRef=useRef(null);
+
+  useEffect(()=>{
+    const s=localStorage.getItem("ch_session");
+    if(s){const p=JSON.parse(s);setSession(p);loadProfile(p);}
+  },[]);
+
+  async function loadProfile(sess){
+    try{const d=await sbFetch(`/profiles?id=eq.${sess.user.id}`,{headers:{Authorization:`Bearer ${sess.access_token}`}},sess.access_token);if(d[0])setProfile(d[0]);}catch{}
+  }
+  async function handleLogin(sess){localStorage.setItem("ch_session",JSON.stringify(sess));setSession(sess);await loadProfile(sess);}
+  function handleLogout(){localStorage.removeItem("ch_session");setSession(null);setProfile(null);setMessages([]);setConversations([]);}
+
+  useEffect(()=>{
+    if(!session)return;
+    loadMessages();loadAllProfiles();loadPinned();
+    clearInterval(pollRef.current);
+    pollRef.current=setInterval(()=>{loadMessages();loadPresence();},3000);
+    return()=>clearInterval(pollRef.current);
+  },[session,room]);
+
+  async function loadMessages(){
+    if(!session)return;
+    try{
+      const data=await sbFetch(`/messages?room=eq.${room}&private=eq.false&order=created_at.asc&limit=100`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      setMessages(Array.isArray(data)?data:[]);
+    }catch{}
+  }
+  async function loadPinned(){
+    if(!session)return;
+    try{
+      const pins=await sbFetch(`/pinned_messages?room=eq.${room}&order=pinned_at.desc`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      if(!Array.isArray(pins)||pins.length===0){setPinned([]);return;}
+      const ids=pins.map(p=>p.message_id).join(",");
+      const msgs=await sbFetch(`/messages?id=in.(${ids})`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      const order=pins.map(p=>p.message_id);
+      const sorted=Array.isArray(msgs)?msgs.sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id)):[];
+      setPinned(sorted);
+    }catch{setPinned([]);}
+  }
+  async function pinMessage(msg){
+    try{
+      await sbFetch("/pinned_messages",{method:"POST",headers:{Authorization:`Bearer ${session.access_token}`,Prefer:"resolution=merge-duplicates"},body:JSON.stringify({message_id:msg.id,room,pinned_by:session.user.id})},session.access_token);
+      setMsgMenuId(null);loadPinned();
+    }catch(e){console.error("Pin failed:",e);}
+  }
+  async function unpinMessage(messageId){
+    try{
+      await sbFetch(`/pinned_messages?message_id=eq.${messageId}&room=eq.${room}`,{method:"DELETE",headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      loadPinned();
+    }catch(e){console.error("Unpin failed:",e);}
+    }
+        async function loadAllProfiles(){
+    try{const d=await sbFetch(`/profiles?select=id,username,avatar_url,avatar_color,department,university,level,phone,student_id,role`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);if(Array.isArray(d)){const m={};d.forEach(p=>{m[p.id]=p;});setProfiles(m);}}catch{}
+  }
+  async function loadPresence(){
+    try{const cutoff=new Date(Date.now()-60000).toISOString();const d=await sbFetch(`/profiles?last_seen=gte.${cutoff}&select=id`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);if(Array.isArray(d)){const m={};d.forEach(p=>{m[p.id]=true;});setOnlineUsers(m);}}catch{}
+  }
+  async function openDmWith(userId){
+    const conv=await getOrCreateConversation(session.user.id,userId,session.access_token);
+    setCurrentConv(conv);setCurrentDmUser(userId);setView("dm");
+  }
+  useEffect(()=>{if(!session||view!=="dms")return;loadConversations(session.user.id,session.access_token).then(setConversations);},[view,session]);
+
+  async function sendMsg(mediaUrl=null,mediaType=null){
+    if(!mediaUrl&&!input.trim())return;
+    const body={
+      room,
+      user_id:session.user.id,
+      username:profile?.username||"User",
+      avatar_color:profile?.avatar_color||"#7C5CFF",
+      content:mediaUrl?null:input.trim(),
+      image_url:mediaUrl||null,
+      reply_to:replyTo?.id||null,
+    };
+    try{
+      await sbFetch("/messages",{method:"POST",headers:{Authorization:`Bearer ${session.access_token}`},body:JSON.stringify(body)},session.access_token);
+      setInput("");setReplyTo(null);await loadMessages();
