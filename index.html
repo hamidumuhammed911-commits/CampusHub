@@ -703,4 +703,157 @@ function PinnedBar({pinned,profile,onJump,onUnpin}){
 }
 
 // ── VoicePlayer ───────────────────────────────────────────────────────────────
-function VoicePlayer({url, duration}){
+function VoicePlayer({url, duration}){function VoicePlayer({url, duration}){
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const audioRef = useRef(null);
+
+  function togglePlay(){
+    if(!audioRef.current) return;
+    if(playing){ audioRef.current.pause(); }
+    else { audioRef.current.play(); }
+    setPlaying(p=>!p);
+  }
+  function onTimeUpdate(){
+    if(!audioRef.current) return;
+    const dur = audioRef.current.duration || duration || 1;
+    setCurrentTime(Math.floor(audioRef.current.currentTime));
+    setProgress((audioRef.current.currentTime/dur)*100);
+  }
+  function onEnded(){ setPlaying(false); setProgress(0); setCurrentTime(0); }
+  function fmtTime(s){ return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}` }
+
+  return(
+    <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:14,background:"rgba(124,92,255,0.10)",border:"1px solid rgba(124,92,255,0.25)",minWidth:190,maxWidth:260}}>
+      <audio ref={audioRef} src={url} onTimeUpdate={onTimeUpdate} onEnded={onEnded} preload="metadata"/>
+      <button onClick={togglePlay} style={{width:34,height:34,borderRadius:"50%",background:"linear-gradient(135deg,#7C5CFF,#22D3C4)",border:"none",color:"#fff",fontSize:15,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 10px rgba(124,92,255,0.35)"}}>
+        {playing?"⏸":"▶"}
+      </button>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{height:3,background:"rgba(255,255,255,0.1)",borderRadius:3,overflow:"hidden",marginBottom:5}}>
+          <div style={{height:"100%",width:`${progress}%`,background:"linear-gradient(90deg,#7C5CFF,#22D3C4)",borderRadius:3,transition:"width 0.1s linear"}}/>
+        </div>
+        <span style={{color:"#9aabd1",fontSize:10,fontFamily:"'JetBrains Mono',monospace"}}>
+          {playing ? fmtTime(currentTime) : fmtTime(duration||0)}
+        </span>
+      </div>
+      <span style={{fontSize:16,flexShrink:0}}>🎙</span>
+    </div>
+  );
+}
+
+// ── useVoiceRecorder ──────────────────────────────────────────────────────────
+function useVoiceRecorder(onDone){
+  const [recording, setRecording] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const mediaRef = useRef(null);
+  const chunksRef = useRef([]);
+  const startRef = useRef(null);
+
+  async function start(){
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      chunksRef.current = [];
+      const mr = new MediaRecorder(stream, {mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")?"audio/webm;codecs=opus":"audio/webm"});
+      mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t=>t.stop());
+        const blob = new Blob(chunksRef.current, {type:"audio/webm"});
+        const secs = Math.round((Date.now()-startRef.current)/1000);
+        setUploading(true);
+        try{ const {url,duration} = await uploadVoiceToCloudinary(blob); onDone(url, duration||secs); }
+        catch{ alert("Voice upload failed. Check Cloudinary preset allows video uploads."); }
+        setUploading(false);
+      };
+      mediaRef.current = mr;
+      startRef.current = Date.now();
+      mr.start();
+      setRecording(true);
+    } catch(e){ alert("Microphone access denied."); }
+  }
+
+  function stop(){
+    if(mediaRef.current && mediaRef.current.state!=="inactive"){ mediaRef.current.stop(); }
+    setRecording(false);
+  }
+
+  return { recording, uploading, start, stop };
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
+function App(){
+  const [session,setSession]=useState(null);
+  const [profile,setProfile]=useState(null);
+  const [profiles,setProfiles]=useState({});
+  const [messages,setMessages]=useState([]);
+  const [input,setInput]=useState("");
+  const [room,setRoom]=useState("general");
+  const [view,setView]=useState("chat");
+  const [conversations,setConversations]=useState([]);
+  const [currentConv,setCurrentConv]=useState(null);
+  const [currentDmUser,setCurrentDmUser]=useState(null);
+  const [onlineUsers,setOnlineUsers]=useState({});
+  const [viewProfile,setViewProfile]=useState(null);
+  const [lightbox,setLightbox]=useState(null);
+  const [replyTo,setReplyTo]=useState(null);
+  const [msgMenuId,setMsgMenuId]=useState(null);
+  const [showSearch,setShowSearch]=useState(false);
+  const [pinned,setPinned]=useState([]);
+  const [uploadingImg,setUploadingImg]=useState(false);
+  const bottomRef=useRef(null);
+  const pollRef=useRef(null);
+  const inputRef=useRef(null);
+  const imgRef=useRef(null);
+  const roomVoice=useVoiceRecorder(async(url,duration)=>{await sendVoiceMsg(url,duration);});
+
+  useEffect(()=>{
+    const s=localStorage.getItem("ch_session");
+    if(s){const p=JSON.parse(s);setSession(p);loadProfile(p);}
+  },[]);
+
+  async function loadProfile(sess){
+    try{const d=await sbFetch(`/profiles?id=eq.${sess.user.id}`,{headers:{Authorization:`Bearer ${sess.access_token}`}},sess.access_token);if(d[0])setProfile(d[0]);}catch{}
+  }
+  async function handleLogin(sess){localStorage.setItem("ch_session",JSON.stringify(sess));setSession(sess);await loadProfile(sess);}
+  function handleLogout(){localStorage.removeItem("ch_session");setSession(null);setProfile(null);setMessages([]);setConversations([]);}
+
+  useEffect(()=>{
+    if(!session||!profile)return;
+    loadMessages();loadAllProfiles();loadPinned();
+    clearInterval(pollRef.current);
+    pollRef.current=setInterval(()=>{loadMessages();loadPresence();},3000);
+    return()=>clearInterval(pollRef.current);
+  },[session,room,profile?.created_at]);
+
+  async function loadMessages(){
+    if(!session)return;
+    try{
+      const joinFilter=profile?.created_at?`&created_at=gte.${encodeURIComponent(profile.created_at)}`:"";
+      const data=await sbFetch(`/messages?room=eq.${room}&private=eq.false${joinFilter}&order=created_at.asc&limit=100`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      setMessages(Array.isArray(data)?data:[]);
+    }catch{}
+  }
+  async function loadPinned(){
+    if(!session)return;
+    try{
+      const pins=await sbFetch(`/pinned_messages?room=eq.${room}&order=pinned_at.desc`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      if(!Array.isArray(pins)||pins.length===0){setPinned([]);return;}
+      const ids=pins.map(p=>p.message_id).join(",");
+      const msgs=await sbFetch(`/messages?id=in.(${ids})`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      const order=pins.map(p=>p.message_id);
+      const sorted=Array.isArray(msgs)?msgs.sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id)):[];
+      setPinned(sorted);
+    }catch{setPinned([]);}
+  }
+  async function pinMessage(msg){
+    try{
+      await sbFetch("/pinned_messages",{method:"POST",headers:{Authorization:`Bearer ${session.access_token}`,Prefer:"resolution=merge-duplicates"},body:JSON.stringify({message_id:msg.id,room,pinned_by:session.user.id})},session.access_token);
+      setMsgMenuId(null);loadPinned();
+    }catch(e){console.error("Pin failed:",e);}
+  }
+  async function unpinMessage(messageId){
+    try{
+      await sbFetch(`/pinned_messages?message_id=eq.${messageId}&room=eq.${room}`,{method:"DELETE",headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      loadPinned();
+    }catch(e){console.error("Unpin failed:",e);}
