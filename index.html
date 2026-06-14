@@ -1,1065 +1,640 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>CampusHub</title>
-<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CampusHub — UI Redesign Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #0d1520; font-family: sans-serif; }
-input, select, textarea { color: #e2e8f0 !important; }
-input::placeholder, textarea::placeholder { color: #64748b; }
-select option { background: #1e2a3a; color: #e2e8f0; }
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: #0d1520; }
-::-webkit-scrollbar-thumb { background: #2d3f55; border-radius: 2px; }
-@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-@keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.4)} 100%{transform:scale(1)} }
-.msg-bubble { animation: fadeIn 0.2s ease; }
-.reaction-btn:hover { transform: scale(1.2); }
-.reaction-btn { transition: transform 0.15s; }
-.online-dot { animation: pulse 2s infinite; }
-.reaction-pop { animation: pop 0.25s ease; }
-.img-msg { max-width:220px; border-radius:12px; cursor:pointer; display:block; margin-top:6px; }
-.lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:999; display:flex; align-items:center; justify-content:center; }
-.lightbox img { max-width:95vw; max-height:90vh; border-radius:12px; }
+  :root {
+    --bg:       #080c14;
+    --surface:  #0d1220;
+    --card:     #111827;
+    --border:   #1e2d45;
+    --border2:  #243550;
+    --accent:   #3b82f6;
+    --accent2:  #6366f1;
+    --gold:     #f59e0b;
+    --green:    #10b981;
+    --red:      #ef4444;
+    --text:     #f0f4ff;
+    --muted:    #64748b;
+    --muted2:   #94a3b8;
+    --mono:     'JetBrains Mono', monospace;
+    --sans:     'Space Grotesk', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 15px; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── AMBIENT GLOW ── */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -30vh; left: -20vw;
+    width: 80vw; height: 80vh;
+    background: radial-gradient(ellipse, rgba(59,130,246,0.07) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -20vh; right: -10vw;
+    width: 60vw; height: 60vh;
+    background: radial-gradient(ellipse, rgba(99,102,241,0.06) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── LAYOUT ── */
+  .app {
+    display: flex;
+    height: 100vh;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 72px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+    gap: 6px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+  }
+  .sidebar-logo {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 0 24px rgba(99,102,241,0.35);
+  }
+  .sidebar-divider {
+    width: 32px; height: 1px;
+    background: var(--border);
+    margin: 8px 0;
+  }
+  .nav-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--muted);
+    position: relative;
+  }
+  .nav-icon:hover { background: rgba(59,130,246,0.12); color: var(--accent); }
+  .nav-icon.active {
+    background: rgba(59,130,246,0.18);
+    color: var(--accent);
+    box-shadow: inset 0 0 0 1px rgba(59,130,246,0.3);
+  }
+  .nav-badge {
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 8px; height: 8px;
+    background: var(--red);
+    border-radius: 50%;
+    border: 2px solid var(--surface);
+  }
+  .sidebar-avatar {
+    margin-top: auto;
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f59e0b, #ef4444);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px;
+    cursor: pointer;
+    border: 2px solid var(--border2);
+  }
+
+  /* ── ROOMS PANEL ── */
+  .rooms-panel {
+    width: 240px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 18px 16px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .search-bar {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 7px 10px;
+    transition: border-color 0.15s;
+  }
+  .search-bar:focus-within { border-color: var(--accent); }
+  .search-bar input {
+    background: none; border: none; outline: none;
+    color: var(--text); font-family: var(--sans); font-size: 13px;
+    flex: 1; width: 100%;
+  }
+  .search-bar input::placeholder { color: var(--muted); }
+
+  .rooms-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .rooms-list::-webkit-scrollbar { width: 3px; }
+  .rooms-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .room-section-label {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--muted); padding: 12px 8px 4px;
+  }
+  .room-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.12s;
+    margin-bottom: 1px;
+  }
+  .room-item:hover { background: rgba(255,255,255,0.04); }
+  .room-item.active {
+    background: rgba(59,130,246,0.12);
+    box-shadow: inset 0 0 0 1px rgba(59,130,246,0.2);
+  }
+  .room-icon {
+    font-size: 16px; width: 22px; text-align: center;
+    flex-shrink: 0;
+  }
+  .room-name {
+    font-size: 13.5px; font-weight: 500; color: var(--muted2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex: 1;
+  }
+  .room-item.active .room-name { color: var(--text); }
+  .room-unread {
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 1px 5px; border-radius: 6px;
+    min-width: 18px; text-align: center;
+  }
+
+  /* ── CHAT AREA ── */
+  .chat-area {
+    flex: 1; display: flex; flex-direction: column;
+    min-width: 0; background: var(--bg);
+  }
+
+  /* ── CHAT HEADER ── */
+  .chat-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 20px;
+    height: 58px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,12,20,0.8);
+    backdrop-filter: blur(12px);
+    flex-shrink: 0;
+  }
+  .chat-header-icon { font-size: 20px; }
+  .chat-header-info { flex: 1; min-width: 0; }
+  .chat-header-name {
+    font-size: 15px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chat-header-meta {
+    font-size: 11px; color: var(--muted);
+  }
+  .chat-header-meta .online { color: var(--green); }
+  .header-actions { display: flex; gap: 4px; }
+  .header-btn {
+    width: 34px; height: 34px;
+    border-radius: 9px;
+    border: none; background: rgba(255,255,255,0.04);
+    color: var(--muted2); font-size: 15px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.12s;
+  }
+  .header-btn:hover { background: rgba(59,130,246,0.12); color: var(--accent); }
+
+  /* ── PINNED BANNER ── */
+  .pinned-banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px;
+    background: rgba(245,158,11,0.06);
+    border-bottom: 1px solid rgba(245,158,11,0.18);
+    font-size: 12.5px;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .pinned-banner:hover { background: rgba(245,158,11,0.1); }
+  .pinned-label { color: var(--gold); font-weight: 600; font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; }
+  .pinned-text { color: var(--muted2); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pinned-dismiss {
+    color: var(--muted); font-size: 13px; padding: 2px 4px;
+    background: none; border: none; cursor: pointer; border-radius: 4px;
+  }
+  .pinned-dismiss:hover { color: var(--text); }
+
+  /* ── MESSAGES ── */
+  .messages-area {
+    flex: 1; overflow-y: auto;
+    padding: 16px 16px 8px;
+    display: flex; flex-direction: column; gap: 2px;
+    scroll-behavior: smooth;
+  }
+  .messages-area::-webkit-scrollbar { width: 4px; }
+  .messages-area::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* Date divider */
+  .date-divider {
+    display: flex; align-items: center; gap: 10px;
+    margin: 16px 0 8px;
+  }
+  .date-divider::before, .date-divider::after {
+    content: ''; flex: 1; height: 1px;
+    background: var(--border);
+  }
+  .date-divider span {
+    font-size: 11px; color: var(--muted);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  /* Message group */
+  .msg-group { display: flex; gap: 10px; padding: 3px 4px; border-radius: 10px; }
+  .msg-group:hover { background: rgba(255,255,255,0.02); }
+  .msg-group.own { flex-direction: row-reverse; }
+
+  .avatar-circle {
+    width: 34px; height: 34px; border-radius: 50%;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    margin-top: 2px;
+  }
+
+  .msg-content { flex: 1; min-width: 0; max-width: 72%; }
+  .msg-group.own .msg-content { align-items: flex-end; display: flex; flex-direction: column; }
+
+  .msg-meta {
+    display: flex; align-items: baseline; gap: 6px;
+    margin-bottom: 3px;
+  }
+  .msg-group.own .msg-meta { flex-direction: row-reverse; }
+  .msg-author { font-size: 12.5px; font-weight: 600; }
+  .msg-time { font-size: 10.5px; color: var(--muted); }
+
+  .msg-bubble {
+    display: inline-block;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px 14px 14px 14px;
+    padding: 8px 12px;
+    font-size: 14px; line-height: 1.5;
+    color: var(--text);
+    word-break: break-word;
+    position: relative;
+  }
+  .msg-group.own .msg-bubble {
+    background: rgba(59,130,246,0.15);
+    border-color: rgba(59,130,246,0.3);
+    border-radius: 14px 4px 14px 14px;
+  }
+  .msg-bubble.has-reply { border-left: 3px solid var(--accent); padding-left: 10px; }
+
+  .reply-preview {
+    font-size: 11.5px; color: var(--muted);
+    border-left: 2px solid var(--border2);
+    padding: 2px 6px;
+    margin-bottom: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .edited-tag {
+    font-size: 10px; color: var(--muted);
+    font-style: italic; margin-left: 4px;
+  }
+
+  /* Reaction row */
+  .msg-reactions {
+    display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px;
+  }
+  .reaction-chip {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2px 7px;
+    font-size: 12px;
+    cursor: pointer; transition: all 0.1s;
+    display: flex; align-items: center; gap: 3px;
+  }
+  .reaction-chip:hover { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.3); }
+  .reaction-chip .count { font-size: 10px; color: var(--muted2); font-family: var(--mono); }
+
+  /* ── MSG ACTIONS (hover) ── */
+  .msg-actions {
+    position: absolute; top: -16px; right: 8px;
+    display: none;
+    background: var(--card);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    z-index: 5;
+  }
+  .msg-group:hover .msg-actions { display: flex; }
+  .action-btn {
+    width: 28px; height: 28px;
+    border-radius: 7px; border: none;
+    background: none; color: var(--muted2);
+    font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.1s;
+  }
+  .action-btn:hover { background: rgba(59,130,246,0.15); color: var(--accent); }
+  .action-btn.danger:hover { background: rgba(239,68,68,0.15); color: var(--red); }
+  .action-btn.pin:hover { background: rgba(245,158,11,0.15); color: var(--gold); }
+
+  /* ── TYPING INDICATOR ── */
+  .typing-bar {
+    padding: 4px 20px 6px;
+    font-size: 11.5px; color: var(--muted);
+    min-height: 24px; flex-shrink: 0;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .typing-dots { display: flex; gap: 3px; }
+  .typing-dots span {
+    width: 5px; height: 5px; background: var(--muted);
+    border-radius: 50%;
+    animation: bounce 1.2s infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  /* ── COMPOSER ── */
+  .composer {
+    padding: 10px 16px 14px;
+    flex-shrink: 0;
+  }
+  .composer-inner {
+    background: var(--card);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    padding: 10px 10px 10px 14px;
+    display: flex; flex-direction: column; gap: 8px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .composer-inner:focus-within {
+    border-color: rgba(59,130,246,0.5);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.08);
+  }
+
+  /* Reply preview in composer */
+  .reply-strip {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(59,130,246,0.08);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 5px 8px;
+    font-size: 12px; color: var(--muted2);
+  }
+  .reply-strip-close {
+    margin-left: auto; background: none; border: none;
+    color: var(--muted); cursor: pointer; font-size: 14px;
+  }
+
+  .composer-row {
+    display: flex; align-items: flex-end; gap: 8px;
+  }
+  .composer-tools {
+    display: flex; align-items: center; gap: 2px; flex-shrink: 0;
+  }
+  .tool-btn {
+    width: 32px; height: 32px; border-radius: 9px;
+    border: none; background: none; color: var(--muted);
+    font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.12s;
+  }
+  .tool-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .tool-btn.active { color: var(--accent); }
+
+  .composer-input {
+    flex: 1; background: none; border: none; outline: none;
+    color: var(--text); font-family: var(--sans); font-size: 14.5px;
+    resize: none; line-height: 1.5; min-height: 22px; max-height: 120px;
+    overflow-y: auto;
+  }
+  .composer-input::placeholder { color: var(--muted); }
+
+  .send-btn {
+    width: 36px; height: 36px; border-radius: 11px;
+    border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; font-size: 16px;
+    cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    box-shadow: 0 2px 12px rgba(59,130,246,0.35);
+  }
+  .send-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 20px rgba(59,130,246,0.5);
+  }
+  .send-btn:active { transform: scale(0.96); }
+  .send-btn:disabled {
+    background: var(--border2); box-shadow: none; cursor: not-allowed; transform: none;
+  }
+
+  /* ── MEMBERS PANEL ── */
+  .members-panel {
+    width: 220px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    flex-shrink: 0; overflow: hidden;
+  }
+  .members-header {
+    padding: 16px; border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .members-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .member-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 8px; border-radius: 9px;
+    cursor: pointer; transition: background 0.1s;
+  }
+  .member-item:hover { background: rgba(255,255,255,0.04); }
+  .member-av {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+    position: relative;
+  }
+  .online-dot {
+    position: absolute; bottom: 0; right: 0;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); border: 2px solid var(--surface);
+  }
+  .member-info { min-width: 0; }
+  .member-name {
+    font-size: 12.5px; font-weight: 500; color: var(--muted2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .member-role {
+    font-size: 10px; color: var(--muted); font-family: var(--mono);
+  }
+  .member-role.admin { color: var(--gold); }
+  .member-role.mod { color: var(--accent); }
+
+  /* ── SECTION LABELS in members ── */
+  .member-section {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 1.3px; text-transform: uppercase;
+    color: var(--muted); padding: 10px 8px 4px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .member-section::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  /* ── DEMO NOTICE ── */
+  .demo-notice {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(13,18,32,0.95);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 12px; color: var(--muted2);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    white-space: nowrap;
+  }
+  .demo-notice span { color: var(--accent); font-weight: 600; }
+
+  /* ── MOBILE ── */
+  @media (max-width: 700px) {
+    .rooms-panel { display: none; }
+    .members-panel { display: none; }
+    .sidebar { width: 0; overflow: hidden; }
+    .chat-header { padding: 0 14px; }
+    .messages-area { padding: 12px 10px 6px; }
+    .composer { padding: 8px 10px 12px; }
+  }
+
+  /* ── SCROLLBAR for the whole page ── */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 </style>
 </head>
 <body>
-<div id="root"></div>
-<script type="text/babel">
-const { useState, useEffect, useRef, useCallback } = React;
+<div class="app">
 
-const SUPABASE_URL = "https://vwrqdstapeguqjvlwrps.supabase.co";
-const SUPABASE_KEY = "sb_publishable_Irsq6di1d317hycpvsD__A_YTQD60ra";
-const CLOUDINARY_CLOUD = "dybylicd7";
-const CLOUDINARY_PRESET = "campushub";
-const EMOJI_REACTIONS = ["👍","❤️","😂","😮","🔥","🎉"];
-
-// ─── API helpers ────────────────────────────────────────────────────────────
-async function uploadToCloudinary(file) {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", CLOUDINARY_PRESET);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
-    method: "POST", body: formData,
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return data.secure_url;
-}
-
-async function sbFetch(path, options = {}, token) {
-  const authKey = token || SUPABASE_KEY;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
-    ...options,
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${authKey}`,
-      "Content-Type": "application/json",
-      Prefer: "return=representation",
-      ...(options.headers || {})
-    },
-  });
-  const text = await res.text();
-  return text ? JSON.parse(text) : [];
-}
-  // —— Global Search Helper
-async function searchAll(query, token) {
-  const q = encodeURIComponent(query.trim());
-  const [messages, users] = await Promise.all([
-    sbFetch(`/rest/v1/messages?content=ilike.*${q}*&limit=5&order=created_at.desc&select=id,content,created_at,user_id,room_id`, {}, token),
-    sbFetch(`/rest/v1/profiles?username=ilike.*${q}*&limit=5&select=id,username,avatar_url,department`, {}, token),
-  ]);
-  return {
-    messages: Array.isArray(messages) ? messages : [],
-    users: Array.isArray(users) ? users : [],
-  };
-}
-
-async function signUp(email, password) {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
-    method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message || "Signup failed");
-  return data;
-}
-
-async function signIn(email, password) {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  const data = await res.json();
-  if (data.error || data.error_code) throw new Error(data.error_description || "Login failed");
-  return data;
-}
-
-async function resetPassword(email) {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
-    method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-  });
-  return await res.json();
-}
-
-// ─── DM Helper Functions ─────────────────────────────────────
-async function getOrCreateConversation(myId, otherId, token) {
-  const [user1, user2] = myId < otherId ? [myId, otherId] : [otherId, myId];
-  const existing = await sbFetch(`/conversations?user1_id=eq.${user1}&user2_id=eq.${user2}`,
-    { headers: { Authorization: `Bearer ${token}` } }, token);
-  if (existing.length) return existing[0];
-  const created = await sbFetch("/conversations", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ user1_id: user1, user2_id: user2 })
-  }, token);
-  return created[0];
-}
-
-async function loadConversations(myId, token) {
-  try {
-    const data = await sbFetch(`/conversations?or=(user1_id.eq.${myId},user2_id.eq.${myId})&order=last_message_at.desc`,
-      { headers: { Authorization: `Bearer ${token}` } }, token);
-    return data;
-  } catch { return []; }
-}
-
-async function loadDirectMessages(conversationId, token) {
-  try {
-    const data = await sbFetch(`/direct_messages?conversation_id=eq.${conversationId}&order=created_at.asc&limit=100`,
-      { headers: { Authorization: `Bearer ${token}` } }, token);
-    return data;
-  } catch { return []; }
-}
-
-async function sendDirectMessage(conversationId, senderId, content, replyTo, mediaUrl, mediaType, token) {
-  const body = {
-    conversation_id: conversationId,
-    sender_id: senderId,
-    content: content || null,
-    reply_to: replyTo || null,
-    media_url: mediaUrl || null,
-    media_type: mediaType || null,
-  };
-  await sbFetch("/direct_messages", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify(body)
-  }, token);
-  await sbFetch(`/conversations?id=eq.${conversationId}`, {
-    method: "PATCH",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ last_message_at: new Date().toISOString() })
-  }, token);
-}
-
-async function markDmRead(conversationId, myId, token) {
-  try {
-    await sbFetch(`/direct_messages?conversation_id=eq.${conversationId}&sender_id=neq.${myId}&read_at=is.null`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ read_at: new Date().toISOString() })
-    }, token);
-  } catch {}
-}
-
-async function broadcastDmTyping(conversationId, userId, token) {
-  try {
-    await sbFetch(`/dm_typing?conversation_id=eq.${conversationId}&user_id=eq.${userId}`, {
-      method: "UPSERT",
-      headers: { Authorization: `Bearer ${token}`, Prefer: "resolution=merge-duplicates" },
-      body: JSON.stringify({ conversation_id: conversationId, user_id: userId, updated_at: new Date().toISOString() })
-    }, token);
-  } catch {}
-}
-
-async function loadDmTypers(conversationId, myId, token) {
-  try {
-    const cutoff = new Date(Date.now() - 5000).toISOString();
-    const data = await sbFetch(`/dm_typing?conversation_id=eq.${conversationId}&updated_at=gte.${cutoff}&user_id=neq.${myId}`,
-      { headers: { Authorization: `Bearer ${token}` } }, token);
-    return data.length > 0;
-  } catch { return false; }
-}
-
-// ─── Constants ──────────────────────────────────────────────────────────────
-const ROOMS = [
-  { id: "general", label: "general", emoji: "💬" },
-  { id: "study", label: "study-group", emoji: "📚" },
-  { id: "announcements", label: "announcements", emoji: "📢" },
-  { id: "off-topic", label: "off-topic", emoji: "🎮" },
-  { id: "assignments", label: "assignments", emoji: "📝" },
-];
-
-const LEVELS = ["Jambite (Pre-university)", "100L", "200L", "300L", "400L", "500L", "Graduate"];
-const COLORS = ["#6C63FF","#FF6584","#43B89C","#F4A261","#4FC3F7","#FF8A65","#A29BFE"];
-const randomColor = () => COLORS[Math.floor(Math.random() * COLORS.length)];
-const timeStr = ts => new Date(ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
-const dateStr = ts => {
-  const d = new Date(ts), now = new Date();
-  if (d.toDateString() === now.toDateString()) return "Today";
-  const yest = new Date(now); yest.setDate(yest.getDate()-1);
-  if (d.toDateString() === yest.toDateString()) return "Yesterday";
-  return d.toLocaleDateString([], { month:"short", day:"numeric" });
-};
-
-const INP = { width:"100%", background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:10, padding:"11px 14px", color:"#e2e8f0", fontSize:14, outline:"none", marginBottom:10, display:"block" };
-const BTN = { width:"100%", background:"#6C63FF", border:"none", borderRadius:10, padding:12, color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer" };
-
-// ─── Small components ────────────────────────────────────────────────────────
-function Avatar({ name, color, url, size = 36, online = false }) {
-  const [imgErr, setImgErr] = useState(false);
-  return (
-    <div style={{ position:"relative", flexShrink:0 }}>
-      {url && !imgErr
-        ? <img src={url} alt={name} style={{ width:size, height:size, borderRadius:"50%", objectFit:"cover", border:"2px solid #2d3f55", display:"block" }} onError={()=>setImgErr(true)} />
-        : <div style={{ width:size, height:size, borderRadius:"50%", background:color||"#6C63FF", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:size*0.33 }}>
-            {name?.slice(0,2).toUpperCase()}
-          </div>
-      }
-      {online && <span className="online-dot" style={{ position:"absolute", bottom:1, right:1, width:9, height:9, borderRadius:"50%", background:"#22c55e", border:"2px solid #111827" }} />}
+  <!-- SIDEBAR NAV -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">🎓</div>
+    <div class="nav-icon active" title="Chat rooms">💬</div>
+    <div class="nav-icon" title="Direct Messages">
+      ✉️
+      <div class="nav-badge"></div>
     </div>
-  );
-}
+    <div class="nav-icon" title="Global Search">🔍</div>
+    <div class="sidebar-divider"></div>
+    <div class="nav-icon" title="Marketplace">🛒</div>
+    <div class="nav-icon" title="Courses">📚</div>
+    <div class="nav-icon" title="Assignments">📝</div>
+    <div class="nav-icon" title="Admin Dashboard" style="margin-top:auto; margin-bottom:8px;">⚙️</div>
+    <div class="sidebar-avatar" title="Your profile">H</div>
+  </nav>
 
-function PhotoUploader({ currentUrl, currentColor, name, onUpload }) {
-  const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState(currentUrl || "");
-  const fileRef = useRef();
-
-  async function handleFile(e) {
-    const file = e.target.files[0]; if (!file) return;
-    setUploading(true);
-    try { const url = await uploadToCloudinary(file); setPreview(url); onUpload(url); }
-    catch { alert("Upload failed. Try again."); }
-    setUploading(false);
-  }
-
-  return (
-    <div style={{ textAlign:"center", marginBottom:16 }}>
-      <div style={{ position:"relative", display:"inline-block" }}>
-        <Avatar name={name} color={currentColor} url={preview} size={80} />
-        <button style={{ position:"absolute", bottom:0, right:0, width:26, height:26, borderRadius:"50%", background:"#6C63FF", border:"2px solid #111827", color:"#fff", fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
-          onClick={()=>fileRef.current.click()} disabled={uploading}>{uploading?"⏳":"📷"}</button>
-      </div>
-      <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleFile} />
-      <div style={{ color:"#475569", fontSize:11, marginTop:6 }}>{uploading?"Uploading...":"Tap 📷 to change photo"}</div>
-    </div>
-  );
-}
-
-function ProfileCard({ p, onClose, isOwn, onEdit, online, onMessage }) {
-  if (!p) return null;
-  const wa = p.phone ? `https://wa.me/${p.phone.replace(/[^0-9]/g,'')}` : null;
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={onClose}>
-      <div style={{ background:"#111827", border:"1px solid #2d3f55", borderRadius:20, padding:24, width:"100%", maxWidth:320, textAlign:"center" }} onClick={e=>e.stopPropagation()}>
-        <div style={{ display:"flex", justifyContent:"center", marginBottom:12 }}>
-          <Avatar name={p.username} color={p.avatar_color} url={p.avatar_url} size={80} online={online} />
-        </div>
-        <h2 style={{ color:"#e2e8f0", fontWeight:800, fontSize:20 }}>{p.username}</h2>
-        {online && <div style={{ color:"#22c55e", fontSize:12, marginTop:4 }}>● Online</div>}
-        <div style={{ color:"#a89eff", fontSize:13, marginTop:4 }}>{p.student_id}</div>
-        <div style={{ marginTop:16, display:"flex", flexDirection:"column", gap:8 }}>
-          {p.university && p.university !== "Not specified" && <div style={{ background:"#1e2a3a", borderRadius:10, padding:"8px 14px", color:"#94a3b8", fontSize:13 }}>🏫 {p.university}</div>}
-          {p.department && <div style={{ background:"#1e2a3a", borderRadius:10, padding:"8px 14px", color:"#94a3b8", fontSize:13 }}>📚 {p.department}</div>}
-          {p.level && <div style={{ background:"#1e2a3a", borderRadius:10, padding:"8px 14px", color:"#94a3b8", fontSize:13 }}>🎓 {p.level}</div>}
-        </div>
-        {wa && <a href={wa} target="_blank" style={{ display:"block", marginTop:16, background:"#25D366", borderRadius:10, padding:"10px", color:"#fff", fontSize:14, fontWeight:700, textDecoration:"none" }}>💬 WhatsApp</a>}
-        {!isOwn && <button style={{ ...BTN, marginTop:10, background:"#1e2a3a" }} onClick={()=>onMessage(p.id)}>💬 Send Message</button>}
-        {isOwn && <button style={{ ...BTN, marginTop:12, background:"#1e2a3a" }} onClick={()=>{ onClose(); onEdit(); }}>✏️ Edit Profile</button>}
-        <button style={{ background:"none", border:"none", color:"#64748b", fontSize:13, cursor:"pointer", marginTop:8 }} onClick={onClose}>Close</button>
+  <!-- ROOMS PANEL -->
+  <aside class="rooms-panel">
+    <div class="panel-header">
+      <div class="panel-title">CampusHub</div>
+      <div class="search-bar">
+        <span style="color:var(--muted);font-size:13px">🔍</span>
+        <input placeholder="Search rooms…" />
       </div>
     </div>
-  );
-}
-
-function EditProfile({ profile, session, onSave, onClose }) {
-  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
-  const [university, setUniversity] = useState(profile?.university || "");
-  const [department, setDepartment] = useState(profile?.department || "");
-  const [level, setLevel] = useState(profile?.level || "");
-  const [phone, setPhone] = useState(profile?.phone || "");
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
-
-  async function save() {
-    setSaving(true);
-    try {
-      await sbFetch(`/profiles?id=eq.${profile.id}`, { method:"PATCH", headers:{ Authorization:`Bearer ${session.access_token}` },
-        body: JSON.stringify({ avatar_url:avatarUrl, university, department, level, phone }) }, session.access_token);
-      onSave({ ...profile, avatar_url:avatarUrl, university, department, level, phone });
-    } catch { setErr("Failed to save. Try again."); }
-    setSaving(false);
-  }
-
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:16, overflowY:"auto" }}>
-      <div style={{ background:"#111827", border:"1px solid #2d3f55", borderRadius:20, padding:24, width:"100%", maxWidth:380 }}>
-        <h2 style={{ color:"#e2e8f0", fontWeight:800, fontSize:18, marginBottom:16, textAlign:"center" }}>✏️ Edit Profile</h2>
-        <PhotoUploader currentUrl={avatarUrl} currentColor={profile?.avatar_color} name={profile?.username} onUpload={url=>setAvatarUrl(url)} />
-        <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>School / University</label>
-        <input style={INP} placeholder="University or school name" value={university} onChange={e=>setUniversity(e.target.value)} />
-        <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>Department / Course</label>
-        <input style={INP} placeholder="Department or course" value={department} onChange={e=>setDepartment(e.target.value)} />
-        <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>Level</label>
-        <select style={{ ...INP, appearance:"none" }} value={level} onChange={e=>setLevel(e.target.value)}>
-          <option value="">Select Level</option>
-          {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-        </select>
-        <label style={{ color:"#94a3b8", fontSize:12, marginBottom:4, display:"block" }}>WhatsApp Number</label>
-        <input style={INP} placeholder="e.g. 2348012345678" value={phone} onChange={e=>setPhone(e.target.value)} />
-        {err && <div style={{ color:"#f87171", fontSize:13, marginBottom:10 }}>{err}</div>}
-        <div style={{ display:"flex", gap:10 }}>
-          <button style={{ flex:1, background:"#1e2a3a", border:"none", borderRadius:10, padding:12, color:"#94a3b8", cursor:"pointer", fontSize:14 }} onClick={onClose}>Cancel</button>
-          <button style={{ flex:1, ...BTN, opacity:saving?0.6:1 }} onClick={save} disabled={saving}>{saving?"Saving...":"Save Changes"}</button>
-        </div>
+    <div class="rooms-list">
+      <div class="room-section-label">📢 General</div>
+      <div class="room-item active">
+        <span class="room-icon">#</span>
+        <span class="room-name">general</span>
+        <span class="room-unread">3</span>
       </div>
-    </div>
-  );
-}
-
-// ─── Lightbox ───────────────────────────────────────────────────────────
-function Lightbox({ url, onClose }) {
-  useEffect(() => {
-    const fn = e => { if (e.key==="Escape") onClose(); };
-    window.addEventListener("keydown", fn);
-    return () => window.removeEventListener("keydown", fn);
-  }, []);
-  return (
-    <div className="lightbox" onClick={onClose}>
-      <img src={url} onClick={e=>e.stopPropagation()} alt="full" />
-    </div>
-  );
-}
-
-// ─── ReactionBar ────────────────────────────────────────────────────────
-function ReactionBar({ msgId, reactions, userId, onReact }) {
-  const [open, setOpen] = useState(false);
-  const grouped = {};
-  (reactions||[]).forEach(r => { grouped[r.emoji] = grouped[r.emoji]||[]; grouped[r.emoji].push(r.user_id); });
-  return (
-    <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:4, alignItems:"center" }}>
-      {Object.entries(grouped).map(([emoji, users]) => {
-        const mine = users.includes(userId);
-        return (
-          <button key={emoji} className="reaction-btn" onClick={()=>onReact(msgId, emoji)}
-            style={{ background: mine?"rgba(108,99,255,0.25)":"#1e2a3a", border: mine?"1px solid #6C63FF":"1px solid #2d3f55",
-              borderRadius:20, padding:"2px 8px", fontSize:13, cursor:"pointer", color:"#e2e8f0", display:"flex", alignItems:"center", gap:4 }}>
-            {emoji} <span style={{ fontSize:11, color:"#94a3b8" }}>{users.length}</span>
-          </button>
-        );
-      })}
-      <button className="reaction-btn" onClick={()=>setOpen(!open)}
-        style={{ background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:20, padding:"2px 8px", fontSize:13, cursor:"pointer", color:"#64748b" }}>
-        {open?"✕":"＋"}
-      </button>
-      {open && (
-        <div style={{ display:"flex", gap:4, background:"#111827", border:"1px solid #2d3f55", borderRadius:20, padding:"4px 8px", flexWrap:"wrap" }}>
-          {EMOJI_REACTIONS.map(e => (
-            <button key={e} className="reaction-btn" onClick={()=>{ onReact(msgId, e); setOpen(false); }}
-              style={{ background:"none", border:"none", fontSize:18, cursor:"pointer" }}>{e}</button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── ReplyPreview ───────────────────────────────────────────────────────
-function ReplyPreview({ msg, onCancel }) {
-  if (!msg) return null;
-  return (
-    <div style={{ background:"#1e2a3a", borderLeft:"3px solid #6C63FF", borderRadius:"0 8px 8px 0", padding:"6px 10px", marginBottom:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-      <div>
-        <div style={{ color:"#a89eff", fontSize:11, fontWeight:700 }}>↩ Replying to {msg.username}</div>
-        <div style={{ color:"#64748b", fontSize:12, marginTop:2, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis", maxWidth:240 }}>
-          {msg.image_url ? "📷 Photo" : msg.content}
-        </div>
+      <div class="room-item">
+        <span class="room-icon">#</span>
+        <span class="room-name">announcements</span>
       </div>
-      <button onClick={onCancel} style={{ background:"none", border:"none", color:"#64748b", fontSize:18, cursor:"pointer", paddingLeft:8 }}>✕</button>
-    </div>
-  );
-}
-
-// ─── DateDivider ─────────────────────────────────────────────────────────
-function DateDivider({ label }) {
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0" }}>
-      <div style={{ flex:1, height:1, background:"#1e2d3d" }} />
-      <span style={{ color:"#475569", fontSize:11, fontWeight:600, whiteSpace:"nowrap" }}>{label}</span>
-      <div style={{ flex:1, height:1, background:"#1e2d3d" }} />
-    </div>
-  );
-}
-
-// ─── TypingIndicator ────────────────────────────────────────────────────
-function TypingIndicator({ typers }) {
-  if (!typers || typers.length === 0) return null;
-  const names = typers.slice(0,2).join(", ");
-  const extra = typers.length > 2 ? ` +${typers.length-2}` : "";
-  return (
-    <div style={{ color:"#64748b", fontSize:12, padding:"0 16px 6px", display:"flex", alignItems:"center", gap:6 }}>
-      <span style={{ display:"inline-flex", gap:3 }}>
-        {[0,1,2].map(i=>(
-          <span key={i} style={{ width:5, height:5, borderRadius:"50%", background:"#475569", display:"inline-block", animation:`pulse ${0.8+i*0.2}s infinite` }} />
-        ))}
-      </span>
-      <span>{names}{extra} typing…</span>
-    </div>
-  );
-}
-
-// ─── ConversationList ──────────────────────────────
-function ConversationList({ conversations, profiles, myId, onlineUsers, onSelect }) {
-  if (!conversations.length) {
-    return <div style={{ color:"#475569", textAlign:"center", marginTop:40, padding:16 }}>No conversations yet. Start a DM from someone's profile! 💬</div>;
-  }
-  return (
-    <div style={{ display:"flex", flexDirection:"column" }}>
-      {conversations.map(conv => {
-        const otherId = conv.user1_id === myId ? conv.user2_id : conv.user1_id;
-        const p = profiles[otherId] || { username: "Unknown" };
-        const isOnline = !!onlineUsers[otherId];
-        return (
-          <button key={conv.id} onClick={()=>onSelect(conv, otherId)}
-            style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", background:"none", border:"none",
-              borderBottom:"1px solid #1e2d3d", cursor:"pointer", textAlign:"left", width:"100%" }}>
-            <Avatar name={p.username} color={p.avatar_color} url={p.avatar_url} size={42} online={isOnline} />
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>{p.username}</div>
-              <div style={{ color:"#64748b", fontSize:12 }}>{isOnline ? "Online" : "Offline"}</div>
-            </div>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function isOwnMsg(msg, myId) { return msg.sender_id === myId; }
-
-// ─── DmChatView ──────────────────────────────
-function DmChatView({ conversation, otherProfile, session, onBack, onlineUsers }) {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
-  const [replyTo, setReplyTo] = useState(null);
-  const [uploadingImg, setUploadingImg] = useState(false);
-  const [otherTyping, setOtherTyping] = useState(false);
-  const [lightbox, setLightbox] = useState(null);
-  const [msgMenuId, setMsgMenuId] = useState(null);
-  const bottomRef = useRef(null);
-  const pollRef = useRef(null);
-  const typingTimeoutRef = useRef(null);
-  const imgRef = useRef();
-
-  const myId = session.user.id;
-  const token = session.access_token;
-  const isOnline = !!onlineUsers[otherProfile.id];
-
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
-
-  useEffect(() => {
-    load();
-    markDmRead(conversation.id, myId, token);
-    clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => {
-      load();
-      markDmRead(conversation.id, myId, token);
-      loadDmTypers(conversation.id, myId, token).then(setOtherTyping);
-    }, 3000);
-    return () => clearInterval(pollRef.current);
-  }, [conversation.id]);
-
-  async function load() {
-    const data = await loadDirectMessages(conversation.id, token);
-    setMessages(data);
-  }
-
-  function handleInputChange(e) {
-    setInput(e.target.value);
-    clearTimeout(typingTimeoutRef.current);
-    broadcastDmTyping(conversation.id, myId, token);
-    typingTimeoutRef.current = setTimeout(()=>{}, 4000);
-  }
-
-  async function send(mediaUrl = null, mediaType = null) {
-    if (!mediaUrl && !input.trim()) return;
-    setSending(true);
-    try {
-      await sendDirectMessage(conversation.id, myId, mediaUrl?null:input.trim(), replyTo?.id||null, mediaUrl, mediaType, token);
-      setInput(""); setReplyTo(null);
-      await load();
-    } catch {}
-    setSending(false);
-  }
-
-  async function handleImageSend(e) {
-    const file = e.target.files[0]; if (!file) return;
-    setUploadingImg(true);
-    try {
-      const url = await uploadToCloudinary(file);
-      await send(url, "image");
-    } catch { alert("Image upload failed."); }
-    setUploadingImg(false);
-    e.target.value = "";
-  }
-
-  async function editMessage(msgId, newContent) {
-    try {
-      await sbFetch(`/direct_messages?id=eq.${msgId}`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ content: newContent, edited_at: new Date().toISOString() })
-      }, token);
-      await load();
-    } catch {}
-  }
-
-  async function deleteDm(msgId) {
-    try {
-      await sbFetch(`/direct_messages?id=eq.${msgId}`, { method:"DELETE",
-        headers:{ Authorization:`Bearer ${token}` } }, token);
-      setMsgMenuId(null);
-      await load();
-    } catch {}
-  }
-
-  const grouped = [];
-  let lastDate = null;
-  messages.forEach(msg => {
-    const d = dateStr(msg.created_at);
-    if (d !== lastDate) { grouped.push({ type:"divider", label:d }); lastDate = d; }
-    grouped.push({ type:"msg", msg });
-  });
-
-  return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%" }}
-      onClick={()=>{ if(msgMenuId) setMsgMenuId(null); }}>
-      {lightbox && <Lightbox url={lightbox} onClose={()=>setLightbox(null)} />}
-      <div style={{ padding:"12px 16px", borderBottom:"1px solid #1e2d3d", background:"#111827", display:"flex", alignItems:"center", gap:12 }}>
-        <button style={{ background:"none", border:"none", color:"#94a3b8", fontSize:20, cursor:"pointer" }} onClick={onBack}>←</button>
-        <Avatar name={otherProfile.username} color={otherProfile.avatar_color} url={otherProfile.avatar_url} size={36} online={isOnline} />
-        <div style={{ flex:1 }}>
-          <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>{otherProfile.username}</div>
-          <div style={{ color: isOnline?"#22c55e":"#475569", fontSize:11 }}>{isOnline ? "● Online" : "Offline"}</div>
-        </div>
+      <div class="room-item">
+        <span class="room-icon">#</span>
+        <span class="room-name">random</span>
       </div>
 
-      <div style={{ flex:1, overflowY:"auto", padding:16, display:"flex", flexDirection:"column", gap:4 }}>
-        {messages.length===0 && <div style={{ color:"#475569", textAlign:"center", marginTop:40 }}>No messages yet — say hello! 👋</div>}
-        {grouped.map((item, idx) => {
-          if (item.type==="divider") return <DateDivider key={`d-${idx}`} label={item.label} />;
-          const { msg } = item;
-          const isOwn = msg.sender_id === myId;
-          const showMenu = msgMenuId === msg.id;
-          const isRead = isOwn && !!msg.read_at;
-          return (
-            <div key={msg.id} className="msg-bubble" style={{ display:"flex", alignItems:"flex-start", gap:10, flexDirection:isOwn?"row-reverse":"row", marginBottom:4, position:"relative" }}>
-              <div style={{ maxWidth:"72%", display:"flex", flexDirection:"column", alignItems:isOwn?"flex-end":"flex-start" }}>
-                {msg.reply_to && (
-                  <div style={{ background:"rgba(108,99,255,0.1)", borderLeft:"3px solid #6C63FF", borderRadius:"0 8px 8px 0", padding:"4px 10px", marginBottom:4, maxWidth:"100%" }}>
-                    <div style={{ color:"#a89eff", fontSize:10, fontWeight:700 }}>↩ Reply</div>
-                  </div>
-                )}
-                <div
-                  onContextMenu={e=>{ e.preventDefault(); setMsgMenuId(msg.id); }}
-                  onTouchStart={()=>{ const t=setTimeout(()=>setMsgMenuId(msg.id),600); return ()=>clearTimeout(t); }}
-                  style={{ padding:msg.media_url?"4px":"9px 13px", color:"#e2e8f0", fontSize:14, lineHeight:1.5, wordBreak:"break-word",
-                    background:isOwn?"#6C63FF":"#1e2a3a",
-                    borderRadius:isOwn?"18px 18px 4px 18px":"18px 18px 18px 4px", cursor:"default" }}>
-                  {msg.media_url && msg.media_type==="image" && <img src={msg.media_url} className="img-msg" onClick={()=>setLightbox(msg.media_url)} alt="shared" />}
-                  {msg.content && <span>{msg.content}</span>}
-                </div>
-                <span style={{ color:"#475569", fontSize:10, marginTop:2, display:"flex", gap:4, alignItems:"center" }}>
-                  {timeStr(msg.created_at)}
-                  {msg.edited_at && <span style={{ fontStyle:"italic" }}>(edited)</span>}
-                  {isOwn && <span style={{ color: isRead ? "#4FC3F7" : "#475569" }}>{isRead ? "✓✓" : "✓"}</span>}
-                </span>
-              </div>
-              {showMenu && (
-                <div style={{ position:"absolute", [isOwn?"right":"left"]:0, top:0, background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:12, padding:6, zIndex:40, minWidth:130, boxShadow:"0 4px 20px rgba(0,0,0,0.4)" }}>
-                  <button style={{ display:"block", width:"100%", background:"none", border:"none", color:"#e2e8f0", fontSize:13, padding:"7px 12px", cursor:"pointer", textAlign:"left", borderRadius:8 }}
-                    onClick={()=>{ setReplyTo(msg); setMsgMenuId(null); }}>↩ Reply</button>
-                  {isOwn && msg.media_type !== "image" && <button style={{ display:"block", width:"100%", background:"none", border:"none", color:"#e2e8f0", fontSize:13, padding:"7px 12px", cursor:"pointer", textAlign:"left", borderRadius:8 }}
-                    onClick={()=>{ const nc = prompt("Edit message:", msg.content); if(nc!=null) editMessage(msg.id, nc); setMsgMenuId(null); }}>✏ Edit</button>}
-                  {isOwn && <button style={{ display:"block", width:"100%", background:"none", border:"none", color:"#f87171", fontSize:13, padding:"7px 12px", cursor:"pointer", textAlign:"left", borderRadius:8 }}
-                    onClick={()=>deleteDm(msg.id)}>🗑 Delete</button>}
-                </div>
-              )}
-            </div>
-          );
-        })}
-        <div ref={bottomRef} />
+      <div class="room-section-label">🏛 Departments</div>
+      <div class="room-item">
+        <span class="room-icon">💻</span>
+        <span class="room-name">computer-science</span>
+        <span class="room-unread">12</span>
+      </div>
+      <div class="room-item">
+        <span class="room-icon">⚗️</span>
+        <span class="room-name">engineering</span>
+      </div>
+      <div class="room-item">
+        <span class="room-icon">📊</span>
+        <span class="room-name">business</span>
+      </div>
+      <div class="room-item">
+        <span class="room-icon">🎨</span>
+        <span class="room-name">design</span>
       </div>
 
-      {otherTyping && (
-        <div style={{ color:"#64748b", fontSize:12, padding:"0 16px 6px" }}>{otherProfile.username} is typing…</div>
-      )}
-
-      <div style={{ padding:"10px 12px", borderTop:"1px solid #1e2d3d", background:"#111827" }}>
-        <ReplyPreview msg={replyTo ? { username: isOwnMsg(replyTo, myId) ? "You" : otherProfile.username, content: replyTo.content, image_url: replyTo.media_url } : null} onCancel={()=>setReplyTo(null)} />
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button style={{ background:"none", border:"1px solid #2d3f55", borderRadius:"50%", width:38, height:38, color:"#64748b", fontSize:18, cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}
-            onClick={()=>imgRef.current.click()} disabled={uploadingImg} title="Send image">
-            {uploadingImg?"⏳":"📎"}
-          </button>
-          <input ref={imgRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleImageSend} />
-          <input style={{ flex:1, background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:12, padding:"10px 14px", color:"#e2e8f0", fontSize:14, outline:"none" }}
-            placeholder={`Message ${otherProfile.username}...`} value={input}
-            onChange={handleInputChange}
-            onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } }} />
-          <button style={{ width:38, height:38, borderRadius:"50%", background:"#6C63FF", border:"none", color:"#fff", fontSize:18, cursor:"pointer", fontWeight:700, opacity:(input.trim()||uploadingImg)&&!sending?1:0.4, flexShrink:0 }}
-            onClick={()=>send()} disabled={(!input.trim()&&!uploadingImg)||sending}>
-            {sending?"…":"↑"}
-          </button>
-        </div>
+      <div class="room-section-label">📚 Study Groups</div>
+      <div class="room-item">
+        <span class="room-icon">🤖</span>
+        <span class="room-name">ai-ml-study</span>
+      </div>
+      <div class="room-item">
+        <span class="room-icon">📐</span>
+        <span class="room-name">calculus-200</span>
       </div>
     </div>
-  );
-}
+  </aside>
 
-// ─── GlobalSearch ────────────────────────────────────────────────────────────
-function GlobalSearch({ session, profiles, onClose, onOpenDm, onSwitchRoom }) {
-  const [query, setQuery] = useState("");
-  const [tab, setTab] = useState("messages");
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const inputRef = useRef();
-  const debounceRef = useRef();
-
-  useEffect(() => { inputRef.current?.focus(); }, []);
-
-  useEffect(() => {
-    clearTimeout(debounceRef.current);
-    if (!query.trim()) { setResults([]); return; }
-    debounceRef.current = setTimeout(() => runSearch(query.trim()), 350);
-    return () => clearTimeout(debounceRef.current);
-  }, [query, tab]);
-
-  async function runSearch(q) {
-    setLoading(true);
-    try {
-      if (tab === "messages") {
-        const data = await sbFetch(
-          `/messages?content=ilike.*${encodeURIComponent(q)}*&order=created_at.desc&limit=30`,
-          { headers: { Authorization: `Bearer ${session.access_token}` } },
-          session.access_token
-        );
-        setResults(data);
-      } else if (tab === "users") {
-        const data = await sbFetch(
-          `/profiles?or=(username.ilike.*${encodeURIComponent(q)}*,department.ilike.*${encodeURIComponent(q)}*,university.ilike.*${encodeURIComponent(q)}*)&limit=30`,
-          { headers: { Authorization: `Bearer ${session.access_token}` } },
-          session.access_token
-        );
-        setResults(data);
-      } else {
-        setResults(ROOMS.filter(r =>
-          r.label.toLowerCase().includes(q.toLowerCase()) ||
-          r.id.toLowerCase().includes(q.toLowerCase())
-        ));
-      }
-    } catch { setResults([]); }
-    setLoading(false);
-  }
-
-  function highlight(text, q) {
-    if (!q || !text) return text;
-    const idx = text.toLowerCase().indexOf(q.toLowerCase());
-    if (idx === -1) return text;
-    return (
-      <span>
-        {text.slice(0, idx)}
-        <mark style={{ background:"rgba(108,99,255,0.35)", color:"#e2e8f0", borderRadius:3, padding:"0 2px" }}>
-          {text.slice(idx, idx + q.length)}
-        </mark>
-        {text.slice(idx + q.length)}
-      </span>
-    );
-  }
-
-  const TABS = [
-    { id:"messages", label:"💬 Messages" },
-    { id:"users",    label:"👤 People" },
-    { id:"rooms",    label:"🏠 Rooms" },
-  ];
-
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:200, display:"flex", flexDirection:"column", alignItems:"center", paddingTop:20 }}
-      onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
-      <div style={{ width:"100%", maxWidth:480, background:"#111827", borderRadius:20, border:"1px solid #2d3f55", overflow:"hidden", display:"flex", flexDirection:"column", maxHeight:"85vh", margin:"0 16px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 16px", borderBottom:"1px solid #1e2d3d" }}>
-          <span style={{ color:"#6C63FF", fontSize:18, flexShrink:0 }}>🔍</span>
-          <input ref={inputRef} style={{ flex:1, background:"transparent", border:"none", outline:"none", color:"#e2e8f0", fontSize:15 }}
-            placeholder="Search messages, people, rooms…" value={query} onChange={e=>setQuery(e.target.value)} />
-          {query && <button onClick={()=>setQuery("")} style={{ background:"none", border:"none", color:"#64748b", fontSize:18, cursor:"pointer", padding:0, lineHeight:1 }}>✕</button>}
-          <button onClick={onClose} style={{ background:"none", fontSize:13, cursor:"pointer", padding:"4px 8px", borderRadius:8, border:"1px solid #2d3f55", color:"#94a3b8" }}>Esc</button>
-        </div>
-        <div style={{ display:"flex", borderBottom:"1px solid #1e2d3d" }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={()=>{ setTab(t.id); setResults([]); if(query.trim()) runSearch(query.trim()); }}
-              style={{ flex:1, padding:"10px 0", border:"none", cursor:"pointer", fontSize:12, fontWeight:700, background:"transparent",
-                color: tab===t.id ? "#a89eff" : "#475569",
-                borderBottom: tab===t.id ? "2px solid #6C63FF" : "2px solid transparent" }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div style={{ flex:1, overflowY:"auto" }}>
-          {!query.trim() && <div style={{ color:"#475569", textAlign:"center", padding:"40px 16px", fontSize:13 }}>Start typing to search across CampusHub</div>}
-          {loading && <div style={{ color:"#475569", textAlign:"center", padding:"30px 16px", fontSize:13 }}>Searching…</div>}
-          {!loading && query.trim() && results.length === 0 && <div style={{ color:"#475569", textAlign:"center", padding:"40px 16px", fontSize:13 }}>No results for "{query}"</div>}
-          {tab === "messages" && results.map(msg => {
-            const room = ROOMS.find(r => r.id === msg.room);
-            return (
-              <button key={msg.id} onClick={()=>{ onSwitchRoom(msg.room); onClose(); }}
-                style={{ display:"block", width:"100%", textAlign:"left", padding:"12px 16px", background:"none", border:"none", borderBottom:"1px solid #1e2d3d", cursor:"pointer" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-                  <span style={{ color:"#6C63FF", fontSize:11, fontWeight:700 }}>{room ? `${room.emoji} #${room.label}` : msg.room}</span>
-                  <span style={{ color:"#475569", fontSize:10, marginLeft:"auto" }}>{timeStr(msg.created_at)}</span>
-                </div>
-                <div style={{ color:"#94a3b8", fontSize:12, fontWeight:700, marginBottom:2 }}>{msg.username}</div>
-                <div style={{ color:"#cbd5e1", fontSize:13, lineHeight:1.4, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>
-                  {highlight(msg.content, query)}
-                </div>
-              </button>
-            );
-          })}
-          {tab === "users" && results.map(p => (
-            <button key={p.id} onClick={()=>{ if(p.id !== session.user.id) onOpenDm(p.id); onClose(); }}
-              style={{ display:"flex", alignItems:"center", gap:12, width:"100%", textAlign:"left", padding:"12px 16px", background:"none", border:"none", borderBottom:"1px solid #1e2d3d", cursor:"pointer" }}>
-              <Avatar name={p.username} color={p.avatar_color} url={p.avatar_url} size={40} />
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:13 }}>{highlight(p.username, query)}</div>
-                {p.department && <div style={{ color:"#64748b", fontSize:11 }}>{highlight(p.department, query)}</div>}
-                {p.university && p.university !== "Not specified" && <div style={{ color:"#475569", fontSize:10 }}>{highlight(p.university, query)}</div>}
-              </div>
-              {p.level && <span style={{ color:"#6C63FF", fontSize:10, fontWeight:700, background:"rgba(108,99,255,0.15)", borderRadius:8, padding:"2px 8px", flexShrink:0 }}>{p.level}</span>}
-              {p.id !== session.user.id && <span style={{ color:"#475569", fontSize:11 }}>DM →</span>}
-            </button>
-          ))}
-          {tab === "rooms" && results.map(room => (
-            <button key={room.id} onClick={()=>{ onSwitchRoom(room.id); onClose(); }}
-              style={{ display:"flex", alignItems:"center", gap:14, width:"100%", textAlign:"left", padding:"14px 16px", background:"none", border:"none", borderBottom:"1px solid #1e2d3d", cursor:"pointer" }}>
-              <span style={{ fontSize:28 }}>{room.emoji}</span>
-       <div>
-                <div style={{ color:"#e2e8f0", fontWeight:700, fontSize:14 }}>#{highlight(room.label, query)}</div>
-                <div style={{ color:"#475569", fontSize:11 }}>Tap to open room</div>
-              </div>
-              <span style={{ color:"#475569", fontSize:11, marginLeft:"auto" }}>→</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── App ─────────────────────────────────────────────────────────────────────
-function App() {
-  const [session, setSession] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [profiles, setProfiles] = useState({});
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [room, setRoom] = useState("general");
-  const [view, setView] = useState("chat");
-  const [conversations, setConversations] = useState([]);
-  const [currentConv, setCurrentConv] = useState(null);
-  const [currentDmUser, setCurrentDmUser] = useState(null);
-  const [onlineUsers, setOnlineUsers] = useState({});
-  const [viewProfile, setViewProfile] = useState(null);
-  const [lightbox, setLightbox] = useState(null);
-  const [replyTo, setReplyTo] = useState(null);
-  const [showSearch, setShowSearch] = useState(false);
-  const [editingProfile, setEditingProfile] = useState(false);
-  const bottomRef = useRef(null);
-  const pollRef = useRef(null);
-  const imgRef = useRef(null);
-
-  useEffect(() => {
-    const s = localStorage.getItem("ch_session");
-    if (s) { const parsed = JSON.parse(s); setSession(parsed); loadProfile(parsed); }
-  }, []);
-
-  async function loadProfile(sess) {
-    try {
-      const data = await sbFetch(`/profiles?id=eq.${sess.user.id}`, { headers:{ Authorization:`Bearer ${sess.access_token}` } }, sess.access_token);
-      if (data[0]) setProfile(data[0]);
-    } catch {}
-  }
-
-  async function handleLogin(sess) {
-    localStorage.setItem("ch_session", JSON.stringify(sess));
-    setSession(sess); await loadProfile(sess);
-  }
-
-  function handleLogout() {
-    localStorage.removeItem("ch_session");
-    setSession(null); setProfile(null); setMessages([]); setConversations([]);
-  }
-
-  useEffect(() => {
-    if (!session) return;
-    loadMessages(); loadAllProfiles();
-    clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => { loadMessages(); loadPresence(); }, 3000);
-    return () => clearInterval(pollRef.current);
-  }, [session, room]);
-
-  async function loadMessages() {
-    if (!session) return;
-    try {
-      const data = await sbFetch(
-        `/messages?room=eq.${room}&order=created_at.asc&limit=100&select=id,user_id,username,avatar_color,content,voice_url,room,created_at,edited_at`,
-        { headers:{ Authorization:`Bearer ${session.access_token}` } }, session.access_token
-      );
-      if (!Array.isArray(data)) { setMessages([]); return; }
-      const ids = data.map(m => m.id).join(",");
-      let reactions = [];
-      if (ids) {
-        try {
-          reactions = await sbFetch(
-            `/message_reactions?message_id=in.(${ids})&select=message_id,user_id,emoji`,
-            { headers:{ Authorization:`Bearer ${session.access_token}` } }, session.access_token
-          );
-        } catch {}
-      }
-      const reactionMap = {};
-      (Array.isArray(reactions) ? reactions : []).forEach(r => {
-        if (!reactionMap[r.message_id]) reactionMap[r.message_id] = [];
-        reactionMap[r.message_id].push(r);
-      });
-      setMessages(data.map(m => ({ ...m, reactions: reactionMap[m.id] || [] })));
-    } catch(e) { console.error("loadMessages error", e); }
-  }
-
-  async function loadAllProfiles() {
-    try {
-      const data = await sbFetch(`/profiles?select=id,username,avatar_url,avatar_color,department,university,level,phone,student_id,role`,
-        { headers:{ Authorization:`Bearer ${session.access_token}` } }, session.access_token);
-      if (Array.isArray(data)) { const map = {}; data.forEach(p => { map[p.id] = p; }); setProfiles(map); }
-    } catch {}
-  }
-
-  async function loadPresence() {
-    try {
-      const cutoff = new Date(Date.now() - 60000).toISOString();
-      const data = await sbFetch(`/profiles?last_seen=gte.${cutoff}&select=id`,
-        { headers:{ Authorization:`Bearer ${session.access_token}` } }, session.access_token);
-      if (Array.isArray(data)) { const m = {}; data.forEach(p => { m[p.id] = true; }); setOnlineUsers(m); }
-    } catch {}
-  }
-
-  async function openDmWith(userId) {
-    const conv = await getOrCreateConversation(session.user.id, userId, session.access_token);
-    setCurrentConv(conv); setCurrentDmUser(userId); setView("dm");
-  }
-
-  useEffect(() => {
-    if (!session || view !== "dms") return;
-    loadConversations(session.user.id, session.access_token).then(setConversations);
-  }, [view, session]);
-
-  async function sendMsg() {
-    if (!input.trim()) return;
-    const body = {
-      room,
-      user_id: session.user.id,
-      username: profile?.username || "User",
-      avatar_color: profile?.avatar_color || "#6C63FF",
-      content: input.trim(),
-    };
-    try {
-      await sbFetch("/messages", { method:"POST",
-        headers:{ Authorization:`Bearer ${session.access_token}`, Prefer:"return=minimal" },
-        body: JSON.stringify(body) }, session.access_token);
-      setInput(""); setReplyTo(null); await loadMessages();
-    } catch(e) { console.error("sendMsg error", e); }
-  }
-
-  async function handleReact(msgId, emoji) {
-    try {
-      const existing = await sbFetch(
-        `/message_reactions?message_id=eq.${msgId}&user_id=eq.${session.user.id}&emoji=eq.${encodeURIComponent(emoji)}`,
-        { headers:{ Authorization:`Bearer ${session.access_token}` } }, session.access_token
-      );
-      if (Array.isArray(existing) && existing.length > 0) {
-        await sbFetch(`/message_reactions?message_id=eq.${msgId}&user_id=eq.${session.user.id}&emoji=eq.${encodeURIComponent(emoji)}`,
-          { method:"DELETE", headers:{ Authorization:`Bearer ${session.access_token}` } }, session.access_token);
-      } else {
-        await sbFetch("/message_reactions", { method:"POST",
-          headers:{ Authorization:`Bearer ${session.access_token}`, Prefer:"return=minimal" },
-          body: JSON.stringify({ message_id: msgId, user_id: session.user.id, emoji }) }, session.access_token);
-      }
-      await loadMessages();
-    } catch(e) { console.error("reaction error", e); }
-  }
-
-  async function handleImageSend(e) {
-    const file = e.target.files[0]; if (!file) return;
-    try {
-      const url = await uploadToCloudinary(file);
-      const body = { room, user_id: session.user.id, username: profile?.username || "User",
-        avatar_color: profile?.avatar_color || "#6C63FF", content: null, voice_url: url };
-      await sbFetch("/messages", { method:"POST",
-        headers:{ Authorization:`Bearer ${session.access_token}`, Prefer:"return=minimal" },
-        body: JSON.stringify(body) }, session.access_token);
-      await loadMessages();
-    } catch { alert("Image upload failed."); }
-    e.target.value = "";
-  }
-
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
-
-  if (!session || !profile) return <LoginScreen onLogin={handleLogin} />;
-
-  if (editingProfile) return (
-    <EditProfile profile={profile} session={session}
-      onSave={p=>{ setProfile(p); setEditingProfile(false); }}
-      onClose={()=>setEditingProfile(false)} />
-  );
-
-  return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100dvh", background:"#0d1520", color:"#e2e8f0", fontFamily:"sans-serif", maxWidth:640, margin:"0 auto", position:"relative" }}>
-      {lightbox && <Lightbox url={lightbox} onClose={()=>setLightbox(null)} />}
-      {viewProfile && <ProfileCard p={viewProfile} onClose={()=>setViewProfile(null)} isOwn={viewProfile.id===session.user.id}
-        onEdit={()=>{ setViewProfile(null); setEditingProfile(true); }} online={!!onlineUsers[viewProfile.id]}
-        onMessage={uid=>{ setViewProfile(null); openDmWith(uid); }} />}
-      {showSearch && <GlobalSearch session={session} profiles={profiles} onClose={()=>setShowSearch(false)}
-        onOpenDm={uid=>openDmWith(uid)} onSwitchRoom={r=>{ setRoom(r); setView("chat"); }} />}
-
-      {/* Header */}
-      <div style={{ padding:"12px 16px", background:"#111827", borderBottom:"1px solid #1e2d3d", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-        <div style={{ flex:1, fontWeight:800, fontSize:16, color:"#a89eff" }}>
-          {view==="chat" && `${ROOMS.find(r=>r.id===room)?.emoji||"💬"} #${ROOMS.find(r=>r.id===room)?.label||room}`}
-          {view==="dms" && "✉️ Messages"}
-          {view==="dm" && "💬 DM"}
-          {view==="profile" && "👤 Profile"}
-        </div>
-        <button onClick={()=>setShowSearch(true)} style={{ background:"none", border:"none", color:"#94a3b8", fontSize:20, cursor:"pointer", padding:"4px 6px" }}>🔍</button>
-        <button onClick={()=>setViewProfile(profile)} style={{ background:"none", border:"none", padding:0, cursor:"pointer" }}>
-          <Avatar name={profile.username} color={profile.avatar_color} url={profile.avatar_url} size={32} online={true} />
-        </button>
-      </div>
-
-      {/* Body */}
-      <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
-        {view==="chat" && (
-          <>
-            <div style={{ display:"flex", overflowX:"auto", borderBottom:"1px solid #1e2d3d", background:"#111827", flexShrink:0 }}>
-              {ROOMS.map(r=>(
-                <button key={r.id} onClick={()=>setRoom(r.id)}
-                  style={{ padding:"10px 14px", background:"none", border:"none", borderBottom: room===r.id?"2px solid #6C63FF":"2px solid transparent",
-                    color: room===r.id?"#a89eff":"#475569", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
-                  {r.emoji} {r.label}
-                </button>
-              ))}
-            </div>
-            <div style={{ flex:1, overflowY:"auto", padding:"12px 16px", display:"flex", flexDirection:"column", gap:4 }}>
-              {messages.length===0 && <div style={{ color:"#475569", textAlign:"center", marginTop:40 }}>No messages yet — say something! 👋</div>}
-              {messages.map(msg=>(
-                <div key={msg.id} className="msg-bubble" style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
-                  <button style={{ background:"none", border:"none", padding:0, cursor:"pointer", flexShrink:0 }}
-                    onClick={()=>setViewProfile(profiles[msg.user_id]||{ id:msg.user_id, username:msg.username })}>
-                    <Avatar name={msg.username} color={profiles[msg.user_id]?.avatar_color||msg.avatar_color}
-                      url={profiles[msg.user_id]?.avatar_url} size={32} online={!!onlineUsers[msg.user_id]} />
-                  </button>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:"flex", gap:8, alignItems:"baseline", marginBottom:2 }}>
-                      <span style={{ fontWeight:700, fontSize:13, color:"#e2e8f0" }}>{msg.username}</span>
-                      <span style={{ fontSize:10, color:"#475569" }}>{timeStr(msg.created_at)}</span>
-                      {msg.edited_at && <span style={{ fontSize:10, color:"#475569", fontStyle:"italic" }}>(edited)</span>}
-                    </div>
-                    {msg.voice_url && <img src={msg.voice_url} className="img-msg" onClick={()=>setLightbox(msg.voice_url)} alt="img" />}
-                    {msg.content && <div style={{ color:"#cbd5e1", fontSize:14, lineHeight:1.5, wordBreak:"break-word" }}>{msg.content}</div>}
-                    <ReactionBar msgId={msg.id} reactions={msg.reactions||[]} userId={session.user.id} onReact={handleReact} />
-                  </div>
-                </div>
-              ))}
-              <div ref={bottomRef} />
-            </div>
-            <div style={{ padding:"10px 12px", borderTop:"1px solid #1e2d3d", background:"#111827", display:"flex", gap:8, alignItems:"center" }}>
-              <button style={{ background:"none", border:"1px solid #2d3f55", borderRadius:"50%", width:38, height:38, color:"#64748b", fontSize:18, cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}
-                onClick={()=>imgRef.current.click()} title="Send image">📎</button>
-              <input ref={imgRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleImageSend} />
-              <input style={{ flex:1, background:"#1e2a3a", border:"1px solid #2d3f55", borderRadius:12, padding:"10px 14px", color:"#e2e8f0", fontSize:14, outline:"none" }}
-                placeholder={`Message #${ROOMS.find(r=>r.id===room)?.label}…`} value={input}
-                onChange={e=>setInput(e.target.value)}
-                onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendMsg(); } }} />
-              <button onClick={sendMsg} style={{ width:38, height:38, borderRadius:"50%", background:"#6C63FF", border:"none", color:"#fff", fontSize:18, cursor:"pointer", opacity:input.trim()?1:0.4 }} disabled={!input.trim()}>↑</button>
-            </div>
-          </>
-        )}
-
-        {view==="dms" && (
-          <div style={{ flex:1, overflowY:"auto" }}>
-            <ConversationList conversations={conversations} profiles={profiles} myId={session.user.id} onlineUsers={onlineUsers}
-              onSelect={(conv, otherId)=>{ setCurrentConv(conv); setCurrentDmUser(otherId); setView("dm"); }} />
-          </div>
-        )}
-
-        {view==="dm" && currentConv && (
-          <DmChatView conversation={currentConv} otherProfile={profiles[currentDmUser]||{ id:currentDmUser, username:"User" }}
-            session={session} onBack={()=>setView("dms")} onlineUsers={onlineUsers} />
-        )}
-      </div>
-
-      {/* Bottom nav */}
-      <div style={{ display:"flex", borderTop:"1px solid #1e2d3d", background:"#111827", flexShrink:0 }}>
-        {[["chat","💬","Chat"],["dms","✉️","DMs"],["profile","👤","Me"]].map(([v,icon,label])=>(
-          <button key={v} onClick={()=>setView(v)}
-            style={{ flex:1, padding:"10px 0", background:"none", border:"none",
-              color: (view===v||(view==="dm"&&v==="dms"))?"#a89eff":"#475569",
-              fontSize:10, fontWeight:700, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-            <span style={{ fontSize:20 }}>{icon}</span>{label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function LoginScreen({ onLogin }) {
-  const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
-  const [mode, setMode] = useState("login"); const [err, setErr] = useState(""); const [loading, setLoading] = useState(false);
-  async function submit() {
-    setLoading(true); setErr("");
-    try {
-      const data = mode==="login" ? await signIn(email,password) : await signUp(email,password);
-      if (data.access_token) onLogin(data);
-      else setErr(data.error?.message || "Check your email to confirm signup.");
-    } catch(e) { setErr(e.message); }
-    setLoading(false);
-  }
-  return (
-    <div style={{ minHeight:"100dvh", background:"#0d1520", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-      <div style={{ width:"100%", maxWidth:380, background:"#111827", borderRadius:20, padding:28, border:"1px solid #2d3f55" }}>
-        <h1 style={{ color:"#a89eff", fontWeight:900, fontSize:26, textAlign:"center", marginBottom:4 }}>🎓 CampusHub</h1>
-        <p style={{ color:"#475569", textAlign:"center", fontSize:13, marginBottom:24 }}>{mode==="login"?"Welcome back":"Join your campus"}</p>
-        <input style={INP} type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} />
-        <input style={INP} type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} />
-        {err && <div style={{ color:"#f87171", fontSize:13, marginBottom:10 }}>{err}</div>}
-        <button style={{ ...BTN, opacity:loading?0.6:1 }} onClick={submit} disabled={loading}>{loading?"...":(mode==="login"?"Sign In":"Sign Up")}</button>
-        <button style={{ background:"none", border:"none", color:"#6C63FF", fontSize:13, cursor:"pointer", width:"100%", marginTop:12, textAlign:"center" }}
-          onClick={()=>{ setMode(mode==="login"?"signup":"login"); setErr(""); }}>
-          {mode==="login"?"Don't have an account? Sign up":"Already have an account? Sign in"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
-</script>
-</body>
-</html>         
+  
