@@ -556,7 +556,7 @@ return(
             title="Hold to record voice note"
             style={{width:34,height:34,borderRadius:11,background:dmVoice.recording?"linear-gradient(135deg,#ef4444,#f97316)":dmVoice.uploading?"rgba(124,92,255,0.3)":"rgba(255,255,255,0.05)",border:dmVoice.recording?"none":"1px solid #22304f",color:"#fff",fontSize:15,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s",boxShadow:dmVoice.recording?"0 0 14px rgba(239,68,68,0.5)":"none"}}>
             {dmVoice.uploading?"⏳":dmVoice.recording?"⏹":"🎙"}
-          </button>
+          </button> 
           <button style={{width:36,height:36,borderRadius:11,background:"linear-gradient(135deg,#7C5CFF,#22D3C4)",border:"none",color:"#fff",fontSize:16,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:(input.trim()||uploadingImg)&&!sending?1:0.35,transition:"all 0.15s",boxShadow:(input.trim()||uploadingImg)&&!sending?"0 2px 12px rgba(108,99,255,0.4)":"none"}}
             onClick={()=>send()} disabled={(!input.trim()&&!uploadingImg)||sending}>↑</button>
         </div>
@@ -830,7 +830,7 @@ function App(){
     if(!session)return;
     try{
       const joinFilter=profile?.created_at?`&created_at=gte.${encodeURIComponent(profile.created_at)}`:"";
-      const data=await sbFetch(`/messages?room=eq.${room}&private=eq.false&order=created_at.asc&limit=100`,{headers:{Authorization:`Bearer ${session.access_token}`}},session.access_token);
+      const d=await sbFetch(`/messages?content=ilike.*${encodeURIComponent(q)}*${joinFilter}&limit=20&order=created_at.desc&select=id,content,created_at,username,room,image_url`,{},session.access_token);
       setMessages(Array.isArray(data)?data:[]);
     }catch{}
   }
