@@ -1013,5 +1013,67 @@ function useVoiceRecorder(onDone){
                   onTouchEnd={e=>{e.preventDefault();roomVoice.stop();}}
                   onMouseDown={e=>{e.preventDefault();roomVoice.start();}}
                   onMouseUp={e=>{e.preventDefault();roomVoice.stop();}}
-                  onMouseLeave={()=>{if(roomVoice.recording)roomVoice.stop();}}
+                  onMouseLeave={()=>{if(roomVoice.recording)roomVoice.stop();}}disabled={roomVoice.uploading}
+                  title="Hold to record voice note"
+                  style={{width:34,height:34,borderRadius:11,background:roomVoice.recording?"linear-gradient(135deg,#ef4444,#f97316)":roomVoice.uploading?"rgba(124,92,255,0.3)":"rgba(255,255,255,0.05)",border:roomVoice.recording?"none":"1px solid #22304f",color:"#fff",fontSize:15,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s",boxShadow:roomVoice.recording?"0 0 14px rgba(239,68,68,0.5)":"none"}}>
+                  {roomVoice.uploading?"⏳":roomVoice.recording?"⏹":"🎙"}
+                </button>
+                <button onClick={()=>sendMsg()}
+                  style={{width:36,height:36,borderRadius:12,background:"linear-gradient(135deg,#7C5CFF,#22D3C4)",border:"none",color:"#fff",fontSize:16,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:input.trim()||uploadingImg?1:0.35,transition:"all 0.15s",boxShadow:input.trim()?"0 2px 14px rgba(124,92,255,0.45)":"none"}}
+                  disabled={!input.trim()&&!uploadingImg}>↑</button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {view==="dms"&&(
+          <div style={{flex:1,overflowY:"auto"}}>
+            <div style={{padding:"14px 16px 8px",borderBottom:"1px solid #22304f"}}>
+              <div style={{color:"#9aabd1",fontSize:11,fontWeight:700,letterSpacing:"1px",textTransform:"uppercase"}}>Direct Messages</div>
+            </div>
+            <ConversationList conversations={conversations} profiles={profiles} myId={session.user.id} onlineUsers={onlineUsers}
+              onSelect={(conv,otherId)=>{setCurrentConv(conv);setCurrentDmUser(otherId);setView("dm");}}/>
+          </div>
+        )}
+
+        {view==="dm"&&currentConv&&(
+          <DmChatView conversation={currentConv} otherProfile={profiles[currentDmUser]||{id:currentDmUser,username:"User"}}
+            session={session} onBack={()=>setView("dms")} onlineUsers={onlineUsers}/>
+        )}
+
+        {view==="profile"&&(
+          <div style={{flex:1,overflowY:"auto",padding:20}}>
+            <div style={{textAlign:"center",marginBottom:20}}>
+              <Avatar name={myProfile.username} color={myProfile.avatar_color} url={myProfile.avatar_url} size={80} online={true}/>
+            </div>
+            <h2 style={{textAlign:"center",fontSize:22,fontWeight:800,color:"#f4f6ff",marginBottom:4}}>{myProfile.username}</h2>
+            <div style={{textAlign:"center",color:"#b4a5ff",fontSize:13,marginBottom:20}}>{myProfile.student_id}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
+              {myProfile.university&&myProfile.university!=="Not specified"&&<div style={{background:"rgba(255,255,255,0.04)",border:"1px solid #22304f",borderRadius:12,padding:"12px 16px",color:"#9aabd1",fontSize:14}}>🏫 {myProfile.university}</div>}
+              {myProfile.department&&<div style={{background:"rgba(255,255,255,0.04)",border:"1px solid #22304f",borderRadius:12,padding:"12px 16px",color:"#9aabd1",fontSize:14}}>📚 {myProfile.department}</div>}
+              {myProfile.level&&<div style={{background:"rgba(255,255,255,0.04)",border:"1px solid #22304f",borderRadius:12,padding:"12px 16px",color:"#9aabd1",fontSize:14}}>🎓 {myProfile.level}</div>}
+              {myProfile.role&&<div style={{background:"rgba(108,99,255,0.08)",border:"1px solid rgba(108,99,255,0.2)",borderRadius:12,padding:"12px 16px",color:"#b4a5ff",fontSize:14}}>🛡 {myProfile.role}</div>}
+            </div>
+            <button style={BTN} onClick={()=>setView("editProfile")}>✏️ Edit Profile</button>
+            <button style={{...BTN,marginTop:10,background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",color:"#f87171"}} onClick={handleLogout}>🚪 Sign Out</button>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Nav */}
+      {view!=="editProfile"&&(
+        <div style={{display:"flex",borderTop:"1px solid #22304f",background:"rgba(13,18,32,0.98)",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
+          {[["chat","💬","Chat"],["dms","✉️","DMs"],["profile","👤","Profile"]].map(([v,icon,label])=>(
+            <button key={v} onClick={()=>setView(v)}
+              style={{flex:1,padding:"10px 0",background:"none",border:"none",color:(view===v||(view==="dm"&&v==="dms"))?"#b4a5ff":"#5f7099",fontSize:10,fontWeight:700,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,fontFamily:"'Space Grotesk',sans-serif",transition:"color 0.15s",position:"relative"}}>
+              <span style={{fontSize:20}}>{icon}</span>
+              {label}
+              {(view===v||(view==="dm"&&v==="dms"))&&<span style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:20,height:2,background:"#7C5CFF",borderRadius:"2px 2px 0 0"}}/>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
           
